@@ -1,0 +1,42 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Commands and events used by the front end",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-boot",
+    "allow-show-window",
+    "allow-set-config",
+    "allow-get-status",
+    "allow-scan-path",
+    "allow-rescan",
+    "allow-rescan-view",
+    "allow-stop-scan",
+    "allow-close-tab",
+    "allow-layout",
+    "allow-select",
+    "allow-zoom",
+    "allow-nav-back",
+    "allow-nav-forward",
+    "allow-nav-up",
+    "allow-nav-home",
+    "allow-tag",
+    "allow-clear-tags",
+    "allow-set-filter",
+    "allow-set-detail",
+    "allow-set-toggle",
+    "allow-details",
+    "allow-stats",
+    "allow-find-node",
+    "allow-open-node",
+    "allow-reveal-node",
+    "allow-start-info",
+    "allow-browse",
+    "allow-elevate",
+    "allow-log-perf",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

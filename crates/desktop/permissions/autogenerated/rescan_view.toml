@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-rescan-view"
+description = "Enables the rescan_view command without any pre-configured scope."
+commands.allow = ["rescan_view"]
+
+[[permission]]
+identifier = "deny-rescan-view"
+description = "Denies the rescan_view command without any pre-configured scope."
+commands.deny = ["rescan_view"]

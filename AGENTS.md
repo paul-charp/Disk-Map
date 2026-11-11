@@ -1,0 +1,92 @@
+# AGENTS.md
+
+diskmap: Windows disk-usage treemap. Rust workspace, Tauri 2 desktop app, plain HTML/CSS/ES-module front end.
+
+## Layout
+
+- `crates/core`: tree, squarified layout, filter grammar (`src/filter`), tags, file classes. No I/O.
+- `crates/scan`: walk backend (`walk.rs`), MFT backend (`mft.rs`, `mft/record.rs`), watcher (`watch.rs`), live updater (`live.rs`), volume info.
+- `crates/bench`: `diskmap-bench` CLI (`scan`, `compare`, `watch`).
+- `crates/desktop`: the app (binary `diskmap`). Backend in `src/` (`commands.rs` Tauri commands, `session.rs`, `state.rs`, `paint.rs`, `config.rs`, `watch.rs`). Front end in `ui/` (`index.html`, `style.css`, `js/*.js`, no build step). `build.rs` lists the commands; a new command goes in `build.rs`, `main.rs` and `ui/js/api.js`.
+- `assets/icon/`: icon source and renders; `crates/desktop/icons/` holds copies.
+- `tools/shots/`: window capture scripts. `docs/`: architecture, scanning, filters.
+- `space_sniffer/` is a local third-party app. Do not read it, edit it or commit it.
+
+## Build, test, lint
+
+```powershell
+cargo build --release -p diskmap
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+If `target\release\diskmap.exe` is locked by a running app, add `--target-dir target\tauri` to cargo commands.
+
+## Rules
+
+- Never commit `space_sniffer/`, `target/` or `diskmap.toml`.
+- Never kill `diskmap.exe` or any process you did not start.
+- Do not commit or push unless asked.
+
+## Code style
+
+- English only. Small functions.
+- Short doc comments on public items only. No long explanatory comments.
+- Keep `unsafe` blocks small, each with a `// SAFETY:` line.
+- No new dependencies without a reason.
+- Front end: plain ES modules, no build step, no Node, no npm.
+
+## UI rules
+
+- Terse, tool-like interface in the spirit of VS Code, GitHub and Obsidian.
+- Labels of one or two words. No sentences in the UI.
+- Icon buttons with tooltips.
+- Themes are data (`ui/js/themes.js`, `ui/js/scheme.js`, `style.css` variables).
+- The map keeps its own look: rounded tiles, gaps, grey folders, accent-coloured files. Do not copy SpaceSniffer's colours or frames.
+- Map behaviour follows SpaceSniffer: click digs in place, double click zooms, Back and Forward step over zooms only.
+
+## Visual verification
+
+Look at screenshots before saying UI work is done.
+
+1. Build, then start the exe with test switches (a config copy avoids touching `diskmap.toml`: set `DISKMAP_CONFIG`):
+   `diskmap.exe <path> [switches]`
+2. Find the window: `powershell -File tools\shots\list.ps1 -ProcId <pid>`.
+3. Resize and capture only that window: `powershell -File tools\shots\win.ps1 -Handle <hwnd> -Width 1600 -Height 1000 -Shot out.png`. The script can also post `-Action click|double|right|move|key` to the window.
+4. Read the PNG. Stop the process you started when done.
+
+Test switches (`crates/desktop/src/args.rs`), applied after the scan of the last tab ends unless noted:
+
+- `<path>`: open a tab scanning that folder; repeat for more tabs.
+- `--tabs "a;b;"`: tabs separated by `;`; an empty entry is a start tab.
+- `--select <rel>`: select the node at a path below the scan root.
+- `--zoom <rel>`: zoom to the node at that path.
+- `--hover <rel>`: hover the node.
+- `--tooltip <rel>`: hover the node and show its tooltip.
+- `--detail <n>`: set the detail level.
+- `--side`: show the side panel.
+- `--settings <section>`: open Settings at startup (Appearance, Map, Scan, Classes, Keys); applied at startup.
+- `--theme <name>`: theme for this run; applied at startup.
+- `--scale <percent>`: UI scale for this run; applied at startup.
+
+`DISKMAP_CONFIG` sets the config file path. `DISKMAP_PERF` names a file that gets one layout timing line per layout.
+
+## MFT and elevation
+
+The MFT backend needs administrator rights, so tests and runs from a normal terminal only cover the walk backend and the pure record parsing tests. Without elevation these cannot be checked:
+
+- An MFT scan of a real volume and the Elevate relaunch.
+- Walk against MFT differences.
+
+From an administrator terminal:
+
+```powershell
+cargo test --workspace
+cargo test -p diskmap-scan -- --ignored   # matches_walk_on_real_volume
+cargo build --release -p diskmap-bench
+target\release\diskmap-bench.exe compare C:\
+target\release\diskmap-bench.exe scan C:\ --backend mft
+```
+
+See `docs/scanning.md`.

@@ -1,0 +1,17 @@
+[package]
+name = "diskmap-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Command line tool to scan, compare and watch with the diskmap scanners."
+
+[[bin]]
+name = "diskmap-bench"
+path = "src/main.rs"
+
+[dependencies]
+crossbeam-channel.workspace = true
+diskmap-core.workspace = true
+diskmap-scan.workspace = true

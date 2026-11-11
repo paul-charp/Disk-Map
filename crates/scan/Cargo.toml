@@ -1,0 +1,18 @@
+[package]
+name = "diskmap-scan"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Parallel directory walk, NTFS MFT reader, change watcher and live tree updater."
+
+[dependencies]
+diskmap-core.workspace = true
+crossbeam-channel.workspace = true
+rayon.workspace = true
+windows = { workspace = true, features = ["Win32_System_Ioctl", "Win32_System_Threading"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+

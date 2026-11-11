@@ -1,0 +1,94 @@
+# diskmap
+
+Windows disk-usage treemap.
+
+![diskmap](docs/screenshot.png)
+
+Navigation inspired by SpaceSniffer.
+
+## Features
+
+- Squarified treemap of a folder or drive, drawn on a canvas with nested folders.
+- Parallel directory walk, or a raw NTFS MFT scan when run as administrator.
+- Live updates from a file-system watcher, with an optional highlight of recent changes.
+- Filter language: name masks, size, age, attributes, folders, file classes and colour tags.
+- Colour tags (4), file classes with editable colours and extensions.
+- Tabs, back and forward over zooms, breadcrumb, free and unknown space of the volume.
+- Side panel with the largest files and folders and bytes per class.
+- Five themes, UI scale, detail level 1 to 12.
+- `diskmap-bench` command line tool to time and compare the scan backends.
+
+## Install / build
+
+Requires Windows 10 or 11, the WebView2 runtime (included in Windows 11) and Rust 1.90 or newer.
+
+```powershell
+cargo build --release -p diskmap
+```
+
+The executable is `target\release\diskmap.exe`. Release archives contain `diskmap.exe` and `diskmap-bench.exe`.
+
+## Usage
+
+- Start screen: type a path (several separated by `;`), pick a drive or a recent scan, or browse. Folders dropped on the window open in tabs. Paths on the command line open one tab each.
+- Click a folder or file to select it; the map digs in place to show its contents.
+- Double click a folder to zoom to it. Back and Forward step through zooms only; Up and Root zoom out.
+- Right click for Open, Reveal, Copy path, tags and Zoom.
+- Tabs: one scan per tab, Ctrl+N for a new tab, middle click to close.
+- Live updates: the Watch toggle (Ctrl+L) follows changes after a scan. Highlight changes is in Settings, Scan.
+- MFT scan: start `diskmap.exe` as administrator, or use the Elevate button in the status bar, which relaunches with the open tabs. The backend (Settings, Scan) is Auto, MFT or Walk; the status bar shows which one ran.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| Ctrl+N | New tab |
+| Ctrl+W | Close tab |
+| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
+| Ctrl+, | Settings |
+| F5 | Rescan / stop |
+| Backspace | Back |
+| Shift+Backspace | Forward |
+| Ctrl+Up | Up |
+| Ctrl+Home | Root |
+| Ctrl++ / Ctrl+- | Detail |
+| Ctrl+T | Class colours |
+| Ctrl+F | Free space |
+| Ctrl+U | Unknown space |
+| Ctrl+L | Watch |
+| Ctrl+B | Side panel |
+| Ctrl+1 to Ctrl+4 | Tag hovered or selected item |
+| Ctrl+0 | Clear tags |
+
+Mouse buttons 4 and 5 act as Back and Forward.
+
+## Filter syntax
+
+Conditions are separated by `;`. A leading `|` negates a condition. See [docs/filters.md](docs/filters.md).
+
+| Example | Matches |
+| --- | --- |
+| `*.jpg;*.png` | Files with either name mask |
+| `\node_modules` | Files inside a folder with that name |
+| `size>100mb` | Files larger than 100 MB |
+| `modify<7d` | Files modified less than 7 days ago |
+| `access>1year` | Files not accessed for more than a year |
+| `:attr:hidden+system` | Hidden and system files |
+| `:class:Video;size>1gb` | Videos larger than 1 GB |
+| `:tag:red,blue` | Files tagged red or blue |
+| `\src;*.rs;\|\target` | Rust files inside `src`, outside `target` |
+
+## Build from source and test
+
+```powershell
+cargo build --workspace
+cargo test --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+The front end in `crates/desktop/ui` is plain HTML, CSS and ES modules; there is no Node build step. See [docs/architecture.md](docs/architecture.md) and [docs/scanning.md](docs/scanning.md).
+
+## Licence
+
+MIT, see [LICENSE](LICENSE).

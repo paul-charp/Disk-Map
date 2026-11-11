@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="graphite">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>diskmap</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" hidden>
+    <div id="tabbar">
+      <div id="tabs" role="tablist"></div>
+      <button class="ib" id="b-newtab" data-icon="plus" title="New tab (Ctrl+N)"></button>
+    </div>
+    <div id="pane">
+      <div id="view">
+        <div id="toolbar" class="row">
+          <button class="ib" id="b-back" data-icon="back" title="Back (Backspace)"></button>
+          <button class="ib" id="b-fwd" data-icon="forward" title="Forward (Shift+Backspace)"></button>
+          <button class="ib" id="b-up" data-icon="up" title="Up (Ctrl+Up)"></button>
+          <button class="ib" id="b-home" data-icon="home" title="Root (Ctrl+Home)"></button>
+          <span class="sep"></span>
+          <button class="ib" id="b-scan" data-icon="rescan" title="Rescan (F5)"></button>
+          <button class="ib" id="b-viewscan" data-icon="rescanView" title="Rescan view"></button>
+          <span class="sep"></span>
+          <button class="ib" id="b-less" data-icon="less" title="Less detail (Ctrl+-)"></button>
+          <button class="ib" id="b-more" data-icon="more" title="More detail (Ctrl++)"></button>
+          <span class="sep"></span>
+          <button class="ib" id="b-classes" data-icon="palette" title="Class colours (Ctrl+T)"></button>
+          <button class="ib" id="b-free" data-icon="pie" title="Free space (Ctrl+F)"></button>
+          <button class="ib" id="b-unknown" data-icon="unknown" title="Unknown space (Ctrl+U)"></button>
+          <button class="ib" id="b-watch" data-icon="eye" title="Watch (Ctrl+L)"></button>
+          <span class="sep"></span>
+          <div id="crumbs"></div>
+          <span id="viewsize" class="mono muted"></span>
+          <span class="sep"></span>
+          <button class="ib" id="b-side" data-icon="side" title="Side panel (Ctrl+B)"></button>
+          <button class="ib" id="b-settings" data-icon="gear" title="Settings (Ctrl+,)"></button>
+        </div>
+        <div id="filterbar" class="row">
+          <svg data-icon="filter"></svg>
+          <input id="filter" type="text" placeholder="Filter" spellcheck="false" autocomplete="off">
+          <span id="filter-err"></span>
+          <span id="filter-count" class="mono muted"></span>
+        </div>
+        <div id="main">
+          <div id="mapwrap"><canvas id="map"></canvas></div>
+          <aside id="side" hidden></aside>
+        </div>
+        <div id="status">
+          <span id="st-state"><i id="st-dot"></i><span id="st-word">Ready</span></span>
+          <span id="st-prog" hidden><i></i></span>
+          <span id="st-count" class="mono"></span>
+          <span id="st-path"></span>
+          <span id="st-err" class="mono"></span>
+          <span id="st-pct" class="mono"></span>
+          <button class="chip warn" id="st-stale" hidden>Stale</button>
+          <span id="st-backend" class="mono"></span>
+          <button class="chip" id="st-elevate" hidden>Elevate</button>
+        </div>
+      </div>
+
+      <div id="start" hidden>
+        <div class="col">
+          <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#25272C"/>
+  <rect x="7" y="12" width="50" height="40" rx="6" fill="#3A3F4B"/>
+  <rect x="12" y="17" width="22" height="21" rx="2" fill="#4C9AFF"/>
+  <rect x="37" y="17" width="15" height="10" rx="2" fill="#8A919C"/>
+  <rect x="37" y="30" width="15" height="8" rx="2" fill="#6B7280"/>
+  <rect x="12" y="43" width="22" height="4" rx="2" fill="#59606D"/>
+  <circle cx="49" cy="45" r="2.5" fill="#2CB5A0"/>
+</svg>
+          <div class="pick">
+            <input id="start-path" type="text" placeholder="Path" spellcheck="false" autocomplete="off">
+            <button class="btn" id="start-browse">Browse</button>
+            <button class="btn primary" id="start-go">Scan</button>
+          </div>
+          <div id="start-err"></div>
+          <h2>DRIVES</h2>
+          <div id="start-drives"></div>
+          <h2>RECENT</h2>
+          <div id="start-recent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings" class="scrim" hidden></div>
+  <div id="tip" hidden></div>
+  <div id="menu" class="menu" hidden></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-find-node"
+description = "Enables the find_node command without any pre-configured scope."
+commands.allow = ["find_node"]
+
+[[permission]]
+identifier = "deny-find-node"
+description = "Denies the find_node command without any pre-configured scope."
+commands.deny = ["find_node"]

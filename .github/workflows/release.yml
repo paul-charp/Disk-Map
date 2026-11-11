@@ -1,0 +1,28 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release -p diskmap -p diskmap-bench
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "diskmap-${{ github.ref_name }}-windows-x64"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item target\release\diskmap.exe, target\release\diskmap-bench.exe, LICENSE, README.md $name
+          Compress-Archive -Path $name\* -DestinationPath "$name.zip"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: diskmap-${{ github.ref_name }}-windows-x64.zip

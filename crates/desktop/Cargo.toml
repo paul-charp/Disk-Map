@@ -1,0 +1,26 @@
+[package]
+name = "diskmap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Windows disk-usage treemap app built on Tauri."
+build = "build.rs"
+
+[dependencies]
+diskmap-core.workspace = true
+diskmap-scan.workspace = true
+crossbeam-channel.workspace = true
+tauri = { version = "2", features = ["custom-protocol"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+rfd = "0.15"
+windows = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+tauri-build = "2"
+
+[dev-dependencies]
+tempfile.workspace = true

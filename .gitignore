@@ -1,0 +1,8 @@
+target/
+space_sniffer/
+diskmap.toml
+*.log
+.vscode/
+.idea/
+*.swp
+crates/desktop/gen/
