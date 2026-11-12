@@ -2,6 +2,7 @@
 
 use crate::config::Config;
 use crate::fmt;
+use crate::log::{self, Log};
 use crate::scan::Scan;
 use crate::session::{Restore, Session, ViewOpts};
 use crate::watch;
@@ -33,7 +34,11 @@ pub struct Inner {
 
 /// Tauri-managed handle to the shared state.
 #[derive(Clone)]
-pub struct AppState(pub Arc<Mutex<Inner>>);
+pub struct AppState {
+    inner: Arc<Mutex<Inner>>,
+    /// The application log; it has its own lock.
+    pub log: &'static Log,
+}
 
 impl Inner {
     /// Scan roots of the open tabs in tab order, the active tab last.
@@ -51,17 +56,20 @@ impl Inner {
 impl AppState {
     /// Creates the state around a loaded configuration.
     pub fn new(cfg: Config) -> Self {
-        AppState(Arc::new(Mutex::new(Inner {
-            classes: cfg.file_classes(),
-            cfg,
-            sessions: HashMap::new(),
-            next_epoch: 0,
-        })))
+        AppState {
+            inner: Arc::new(Mutex::new(Inner {
+                classes: cfg.file_classes(),
+                cfg,
+                sessions: HashMap::new(),
+                next_epoch: 0,
+            })),
+            log: log::get(),
+        }
     }
 
     /// Locks the state, ignoring poisoning.
     pub fn lock(&self) -> MutexGuard<'_, Inner> {
-        self.0.lock().unwrap_or_else(|e| e.into_inner())
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -276,6 +284,7 @@ pub fn start_view_rescan(app: &AppHandle, state: &AppState, tab: TabId) -> Resul
                 return;
             };
             s.refreshing = false;
+            log_errors(&sub);
             if !sub.cancelled {
                 s.scan.replace_subtree(node, sub.tree());
                 s.selection = None;
@@ -308,6 +317,7 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
             }
             s.refresh_filter(classes);
             if done {
+                log_done(&s.scan);
                 let (root, size) = (
                     s.scan.root_path.clone(),
                     s.scan.tree().get(s.scan.tree().root()).allocated,
@@ -327,6 +337,34 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
             return;
         }
     }
+}
+
+/// Logs how a scan ended.
+fn log_done(scan: &Scan) {
+    let secs = scan.elapsed().as_secs_f64();
+    let how = if scan.cancelled { "Stopped" } else { "Scanned" };
+    log::info(
+        "scan",
+        format!(
+            "{how} {} ({}, {secs:.1} s)",
+            scan.root_path,
+            scan.backend.name()
+        ),
+    );
+    log_errors(scan);
+}
+
+/// Logs the folders a scan could not read, with a few examples.
+fn log_errors(scan: &Scan) {
+    if scan.errors == 0 {
+        return;
+    }
+    let mut text = format!("{}: {} folders unreadable", scan.root_path, scan.errors);
+    for sample in &scan.error_samples {
+        text.push('\n');
+        text.push_str(sample);
+    }
+    log::warn("scan", text);
 }
 
 /// Applies the received event and whatever else is queued within the budget; true when the scan ended.

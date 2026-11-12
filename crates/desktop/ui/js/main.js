@@ -8,6 +8,7 @@ import { mountIcons } from './icons.js';
 import { initKeys } from './keys.js';
 import { MapView } from './map.js';
 import { bindMenuDismiss, closeMenu, openMenu } from './menu.js';
+import { initOutput } from './output.js';
 import { initSettings } from './settings.js';
 import { initSide } from './side.js';
 import { initStart } from './start.js';
@@ -95,6 +96,7 @@ async function main() {
     side: initSide(app),
     start: initStart(app),
     settings: initSettings(app),
+    output: await initOutput(),
   };
   app.map = new MapView($('map'), {
     classes: app.classes,
@@ -114,6 +116,7 @@ async function main() {
   await openStartTabs(boot);
   await showWhenPainted();
   loadDrives();
+  if (boot.flags.log) app.parts.output.show();
   if (boot.flags.settings) app.parts.settings.open(boot.flags.settings);
 }
 
@@ -136,6 +139,9 @@ async function openStartTabs(boot) {
   for (const [i, p] of boot.tabs.entries()) await app.newTab(p, i === last);
 }
 
-addEventListener('error', (e) => api.perf(`error ${e.message} ${e.filename}:${e.lineno}`));
-addEventListener('unhandledrejection', (e) => api.perf(`rejected ${e.reason}`));
+/** Sends an uncaught script error to the log. */
+const report = (message) => api.logJs('error', message).catch(() => {});
+addEventListener('error', (e) => report(`${e.error?.stack ?? e.message} (${e.filename}:${e.lineno})`));
+// Command errors reject with their text and are already logged by the backend.
+addEventListener('unhandledrejection', (e) => typeof e.reason !== 'string' && report(`Unhandled: ${e.reason?.stack ?? e.reason}`));
 main();

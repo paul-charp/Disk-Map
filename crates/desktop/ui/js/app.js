@@ -145,7 +145,10 @@ const showMode = () => {
   const map = app.tab.mode === 'map';
   $('view').hidden = !map;
   $('start').hidden = map;
-  if (!map) app.parts.start.show(app.tab);
+  if (map) return;
+  app.parts.start.show(app.tab);
+  app.parts.statusbar.update(app.tab.status);
+  app.parts.statusbar.setPath('');
 };
 
 /** Keeps the field text of the leaving tab. */

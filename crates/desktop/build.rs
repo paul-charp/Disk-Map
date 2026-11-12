@@ -30,6 +30,12 @@ const COMMANDS: &[&str] = &[
     "browse",
     "elevate",
     "log_perf",
+    "log_entries",
+    "log_clear",
+    "log_js",
+    "about",
+    "open_link",
+    "reveal_config",
 ];
 
 fn main() {

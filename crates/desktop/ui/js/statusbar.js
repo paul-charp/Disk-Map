@@ -55,8 +55,8 @@ function update(st) {
   prog.classList.toggle('busy', !st.volume);
   prog.firstElementChild.style.width = st.volume ? `${st.volume.percent}%` : '';
   const pct = st.volume && st.running ? `${st.volume.percent}% · ` : '';
-  const totals = `${st.files.toLocaleString()} files · ${st.dirs.toLocaleString()} folders · ${st.scanned}`;
-  $('st-count').textContent = st.active ? `${pct}${totals}${st.running ? '' : ` · ${seconds(st.elapsed_ms)}`}` : '';
+  const totals = () => `${st.files.toLocaleString()} files · ${st.dirs.toLocaleString()} folders · ${st.scanned}`;
+  $('st-count').textContent = st.active ? `${pct}${totals()}${st.running ? '' : ` · ${seconds(st.elapsed_ms)}`}` : '';
   const err = $('st-err');
   err.textContent = st.errors ? `${st.errors.toLocaleString()} errors` : '';
   err.title = st.error_samples?.join(String.fromCharCode(10)) ?? '';
