@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Core snapshot format, timeline points and tree diff with top movers (`docs/snapshots.md`).
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.

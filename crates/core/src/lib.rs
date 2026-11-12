@@ -1,5 +1,9 @@
 pub mod classes;
+mod codec;
+pub mod diff;
 pub mod filter;
 pub mod layout;
+pub mod snapshot;
+pub mod summary;
 pub mod tags;
 pub mod tree;
