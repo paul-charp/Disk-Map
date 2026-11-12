@@ -18,15 +18,38 @@ Navigation inspired by SpaceSniffer.
 - Five themes, UI scale, detail level 1 to 12.
 - `diskmap-bench` command line tool to time and compare the scan backends.
 
-## Install / build
+## Install
 
-Requires Windows 10 or 11, the WebView2 runtime (included in Windows 11) and Rust 1.90 or newer.
+Requires Windows 10 or 11 and the WebView2 runtime (part of Windows 11 and current Windows 10). Each [release](https://github.com/paul-charp/Disk-Map/releases) has two downloads:
+
+| Asset | Kind | Settings | Data (snapshots, log) |
+| --- | --- | --- | --- |
+| `diskmap-vX.Y.Z-windows-x64-setup.exe` | Installer, per user, no admin | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\` |
+| `diskmap-vX.Y.Z-windows-x64.zip` | Portable | `diskmap.toml` next to the exe | `data\` next to the exe |
+
+- Installer: installs to `%LOCALAPPDATA%\diskmap` by default, adds a Start menu shortcut and, from a checkbox on the last page, a desktop shortcut. It downloads WebView2 only if it is missing. Uninstall from Windows Settings, Apps; settings and data are kept unless "Delete the application data" is ticked.
+- Portable: unzip anywhere. The `portable` file next to `diskmap.exe` keeps everything in that folder; delete it to use the installed locations instead.
+- `DISKMAP_CONFIG` overrides the settings path in both modes.
+
+Release downloads contain `diskmap.exe` only; `diskmap-bench` is a development tool built from source.
+
+## Build
+
+Requires Rust 1.90 or newer.
 
 ```powershell
 cargo build --release -p diskmap
 ```
 
-The executable is `target\release\diskmap.exe`. Release archives contain `diskmap.exe` only; `diskmap-bench` is a development tool built from source.
+The executable is `target\release\diskmap.exe`. The installer needs the Tauri CLI (it fetches NSIS itself):
+
+```powershell
+cargo install tauri-cli --version "^2" --locked
+cd crates\desktop
+cargo tauri build --bundles nsis
+```
+
+The installer is written to `target\release\bundle\nsis\diskmap_<version>_x64-setup.exe`.
 
 ## Usage
 

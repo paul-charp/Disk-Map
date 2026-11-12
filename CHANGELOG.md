@@ -10,6 +10,7 @@
 - Context menu: Open in terminal, Properties, Scan in new tab and Recycle (with confirm).
 - Export of the view, the selection, top files and top folders as CSV or JSON (toolbar Export menu, context menu), honouring the filter and the detail level.
 - File colour mode Accent, Class or Age: age colours files by modification time with a ramp per theme, an Age legend in the side panel and the `--colour` test switch. Replaces the class colour toggle; `class_colors` in old configs is still read.
+- NSIS installer `diskmap-<tag>-windows-x64-setup.exe` next to the portable zip: per-user install without admin, Start menu shortcut, optional desktop shortcut, uninstaller that keeps settings and data unless asked to delete them. CI builds it on `release/*` branches and on manual runs.
 
 ## 0.1.0
 

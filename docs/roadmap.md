@@ -94,7 +94,7 @@ Settings section with version, GitHub link, license, data folder (with Open), an
 ## Install, update, distribution
 
 - Installer: Tauri bundler, NSIS, per-user without admin, Start menu shortcut, optional desktop shortcut, uninstaller that can keep data.
-  Releases ship `diskmap-setup.exe` and the portable zip with the marker.
+  Releases ship `diskmap-<tag>-windows-x64-setup.exe` and the portable zip with the marker.
 - Updater: `tauri-plugin-updater`, signed `latest.json` on GitHub Releases (key in a repository secret).
   Installed builds install and restart; portable builds only check and link to the release.
 - Winget: `wingetcreate` in `release.yml` after the first installer release (user scope, nullsoft).
