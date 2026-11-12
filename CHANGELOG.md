@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.
+- Local working files move to `.local/`.
 
 ## 0.1.0
 

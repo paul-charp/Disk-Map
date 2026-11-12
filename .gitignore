@@ -1,5 +1,5 @@
 target/
-space_sniffer/
+.local/
 diskmap.toml
 *.log
 .vscode/
