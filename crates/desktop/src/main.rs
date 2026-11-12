@@ -74,6 +74,7 @@ fn main() {
             commands::set_filter,
             commands::set_detail,
             commands::set_toggle,
+            commands::set_file_colors,
             commands::details,
             commands::stats,
             commands::find_node,

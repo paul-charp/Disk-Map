@@ -1,10 +1,11 @@
 //! State of one scan: navigation, selection, tags, filter and statistics.
 
-use crate::config::Config;
+use crate::config::{Config, FileColors};
 use crate::fmt;
 use crate::marks::Marks;
 use crate::scan::Scan;
 use crate::watch::Live;
+use diskmap_core::age::{AGE_BUCKETS, age_bucket};
 use diskmap_core::classes::FileClasses;
 use diskmap_core::filter::{Filter, FilterCtx, Filtered};
 use diskmap_core::layout::Sizes;
@@ -54,6 +55,8 @@ impl FilterState {
 pub struct Stats {
     pub files: Vec<(NodeId, u64)>,
     pub folders: Vec<(NodeId, u64)>,
+    /// Bytes per age bucket, most recent first.
+    pub ages: Vec<u64>,
     /// Bytes per class, the last entry is files without a class.
     pub classes: Vec<u64>,
     key: Option<(NodeId, u64, u64)>,
@@ -64,7 +67,7 @@ pub struct Stats {
 #[derive(Clone, Copy, Debug)]
 pub struct ViewOpts {
     pub detail: u32,
-    pub class_colors: bool,
+    pub file_colors: FileColors,
     pub show_free: bool,
     pub show_unknown: bool,
 }
@@ -74,7 +77,7 @@ impl ViewOpts {
     pub fn from_config(cfg: &Config) -> Self {
         ViewOpts {
             detail: cfg.detail,
-            class_colors: cfg.class_colors,
+            file_colors: cfg.file_colors,
             show_free: cfg.show_free,
             show_unknown: cfg.show_unknown,
         }
@@ -491,6 +494,8 @@ impl Session {
         let mut files = BinaryHeap::new();
         let mut folders = BinaryHeap::new();
         let mut per_class = vec![0u64; classes.classes().len() + 1];
+        let mut per_age = vec![0u64; AGE_BUCKETS];
+        let now = fmt::filetime_now();
         let mut stack = vec![self.root];
         while let Some(id) = stack.pop() {
             let size = sizes.get(tree, id);
@@ -503,6 +508,7 @@ impl Session {
                     .class_of(tree.name(id))
                     .unwrap_or(per_class.len() - 1);
                 per_class[c] += size;
+                per_age[usize::from(age_bucket(tree.times(id).mtime, now))] += size;
             } else {
                 if id != self.root {
                     push_top(&mut folders, size, id);
@@ -513,6 +519,7 @@ impl Session {
         Stats {
             files: into_sorted(files),
             folders: into_sorted(folders),
+            ages: per_age,
             classes: per_class,
             key: Some(key),
             at: Some(Instant::now()),

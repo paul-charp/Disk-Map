@@ -27,6 +27,7 @@
     "allow-set-filter",
     "allow-set-detail",
     "allow-set-toggle",
+    "allow-set-file-colors",
     "allow-details",
     "allow-stats",
     "allow-find-node",

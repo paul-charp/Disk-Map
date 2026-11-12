@@ -1,6 +1,6 @@
 //! Shared application state, the status snapshot and the scan worker thread.
 
-use crate::config::Config;
+use crate::config::{Config, FileColors};
 use crate::fmt;
 use crate::scan::Scan;
 use crate::session::{Restore, Session, ViewOpts};
@@ -110,7 +110,7 @@ pub struct Status {
     pub matched: u64,
     pub filter_text: String,
     pub detail: u32,
-    pub class_colors: bool,
+    pub file_colors: FileColors,
     pub show_free: bool,
     pub show_unknown: bool,
     /// `MFT` or `Walk`.
@@ -183,7 +183,7 @@ pub fn status(inner: &Inner, tab: TabId) -> Status {
         matched: s.matched_files(),
         filter_text: s.filter.text.clone(),
         detail: s.view.detail,
-        class_colors: s.view.class_colors,
+        file_colors: s.view.file_colors,
         show_free: s.view.show_free,
         show_unknown: s.view.show_unknown,
         backend: s.scan.backend.name(),

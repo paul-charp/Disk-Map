@@ -6,7 +6,9 @@ import { SCHEMES } from './scheme.js';
 import { newTab } from './tabs.js';
 import { applyTheme } from './themes.js';
 
-const TOGGLE_KEYS = { classes: 'class_colors', free: 'show_free', unknown: 'show_unknown' };
+const TOGGLE_KEYS = { free: 'show_free', unknown: 'show_unknown' };
+/** File colour modes with their labels, in cycle order. */
+export const FILE_COLORS = [['accent', 'Accent'], ['class', 'Class'], ['age', 'Age']];
 const DETAIL_MAX = 12;
 export const TEXT_SCALES = { small: 0.9, medium: 1, large: 1.2 };
 
@@ -101,6 +103,14 @@ app.toggle = async (kind) => {
   if (kind === 'side') return app.patchConfig({ show_side: !app.cfg.show_side });
   if (kind === 'watch') return app.patchConfig({ watch: !app.cfg.watch });
   await app.act(api.setToggle(app.tab.id, kind, !app.status[TOGGLE_KEYS[kind]]));
+};
+
+app.setFileColors = (mode) => app.act(api.setFileColors(app.tab.id, mode));
+
+/** Steps to the next file colour mode. */
+app.cycleFileColors = () => {
+  const i = FILE_COLORS.findIndex(([m]) => m === app.status.file_colors);
+  return app.setFileColors(FILE_COLORS[(i + 1) % FILE_COLORS.length][0]);
 };
 
 // ----- configuration -----

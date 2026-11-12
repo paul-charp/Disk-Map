@@ -3,12 +3,14 @@
 //! Layout of the buffer, all little-endian `i32`:
 //! - header: item count, label blob bytes, view root node, layout micros;
 //! - items: x, y, w, h, node, meta, parent index, highlight
-//!   (meta = depth | class << 8 | flags << 16; highlight = weight << 16 | warning << 15 | age in ms, 0 for none);
+//!   (meta = depth | class << 8 | flags << 16, class is an age bucket when [`F_AGE`] is set; highlight = weight << 16 | warning << 15 | age in ms, 0 for none);
 //! - label blob: UTF-8 labels joined by `\n`, one per item flagged [`F_LABEL`], in item order.
 //!   A label is `name\u{1}size`. Item 0 is the view root; its rect lies outside the area.
 
+use crate::config::FileColors;
 use crate::fmt;
 use crate::session::Session;
+use diskmap_core::age::age_bucket;
 use diskmap_core::classes::FileClasses;
 use diskmap_core::layout::{Item, ItemKind, LayoutParams, Rect, layout};
 use diskmap_core::tree::{NodeId, NodeKind};
@@ -28,6 +30,8 @@ const F_SELECTED: u32 = 32;
 const F_BOLD: u32 = 64;
 const F_LABEL: u32 = 128;
 const TAG_SHIFT: u32 = 8;
+/// The class byte holds an age bucket instead of a class.
+const F_AGE: u32 = 1 << 11;
 const NO_CLASS: u32 = 255;
 const HEADER_INTS: usize = 4;
 const ITEM_INTS: usize = 8;
@@ -68,6 +72,8 @@ pub struct PaintCtx<'a> {
     pub dpr: f32,
     /// Include the highlight of recent changes.
     pub highlight: bool,
+    /// Current time as a Windows FILETIME, for age colours.
+    pub now: i64,
 }
 
 struct Encoder<'a> {
@@ -115,9 +121,16 @@ impl Encoder<'_> {
         let mut class = NO_CLASS;
         if tree.get(id).kind == NodeKind::File {
             flags |= F_FILE;
-            if self.s.view.class_colors {
-                let other = self.cx.classes.classes().len();
-                class = self.cx.classes.class_of(tree.name(id)).unwrap_or(other) as u32;
+            match self.s.view.file_colors {
+                FileColors::Accent => {}
+                FileColors::Class => {
+                    let other = self.cx.classes.classes().len();
+                    class = self.cx.classes.class_of(tree.name(id)).unwrap_or(other) as u32;
+                }
+                FileColors::Age => {
+                    flags |= F_AGE;
+                    class = u32::from(age_bucket(tree.times(id).mtime, self.cx.now));
+                }
             }
         } else {
             flags |= F_DIR;
@@ -269,6 +282,7 @@ mod tests {
             height: 600,
             dpr: 1.5,
             highlight: true,
+            now: fmt::filetime_now(),
         };
         let buf = build(&session, &cx);
 
@@ -285,5 +299,36 @@ mod tests {
         assert_eq!(blob.split('\n').count(), labelled);
         let first_child = HEADER_INTS + ITEM_INTS;
         assert!(word(&buf, first_child) >= 0 && word(&buf, first_child + 1) >= 0);
+    }
+
+    #[test]
+    fn age_mode_marks_recent_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("new.bin"), vec![0u8; 10_000]).expect("write");
+        let mut session = scanned_session(dir.path());
+        session.view.file_colors = FileColors::Age;
+        let classes = FileClasses::default();
+        let cx = PaintCtx {
+            classes: &classes,
+            min_tile: 4,
+            text_scale: 1.0,
+            width: 400,
+            height: 300,
+            dpr: 1.0,
+            highlight: false,
+            now: fmt::filetime_now(),
+        };
+        let buf = build(&session, &cx);
+        let metas: Vec<u32> = (0..word(&buf, 0) as usize)
+            .map(|i| word(&buf, HEADER_INTS + i * ITEM_INTS + 5) as u32)
+            .filter(|m| m >> 16 & F_FILE != 0)
+            .collect();
+        assert_eq!(metas.len(), 1);
+        assert_ne!(metas[0] >> 16 & F_AGE, 0);
+        assert_eq!(
+            metas[0] >> 8 & 255,
+            0,
+            "a new file is in the most recent bucket"
+        );
     }
 }

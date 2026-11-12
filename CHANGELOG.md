@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- File colour mode Accent, Class or Age: age colours files by modification time with a ramp per theme, an Age legend in the side panel and the `--colour` test switch. Replaces the class colour toggle; `class_colors` in old configs is still read.
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.

@@ -24,6 +24,7 @@ export const api = {
   setFilter: (tab, text) => invoke('set_filter', { tab, text }),
   setDetail: (tab, detail) => invoke('set_detail', { tab, detail }),
   setToggle: (tab, kind, on) => invoke('set_toggle', { tab, kind, on }),
+  setFileColors: (tab, mode) => invoke('set_file_colors', { tab, mode }),
   details: (tab, node) => invoke('details', { tab, node }),
   stats: (tab) => invoke('stats', { tab }),
   findNode: (tab, path) => invoke('find_node', { tab, path }),

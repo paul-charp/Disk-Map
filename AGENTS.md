@@ -70,6 +70,7 @@ Test switches (`crates/desktop/src/args.rs`), applied after the scan of the last
 - `--settings <section>`: open Settings at startup (Appearance, Map, Scan, Classes, Keys); applied at startup.
 - `--theme <name>`: theme for this run; applied at startup.
 - `--scale <percent>`: UI scale for this run; applied at startup.
+- `--colour <accent|class|age>`: file tile colours for this run; applied at startup.
 
 `DISKMAP_CONFIG` sets the config file path. `DISKMAP_PERF` names a file that gets one layout timing line per layout.
 

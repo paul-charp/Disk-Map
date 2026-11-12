@@ -15,7 +15,7 @@ export const SHORTCUTS = [
   ['Ctrl+Up', 'Up'],
   ['Ctrl+Home', 'Root'],
   ['Ctrl++ / Ctrl+-', 'Detail'],
-  ['Ctrl+T', 'Class colours'],
+  ['Ctrl+T', 'File colours'],
   ['Ctrl+F', 'Free space'],
   ['Ctrl+U', 'Unknown space'],
   ['Ctrl+L', 'Watch'],
@@ -59,7 +59,7 @@ function ctrlKey(app, e) {
   if (PLUS.has(k)) return handled(e, () => app.changeDetail(1));
   if (MINUS.has(k)) return handled(e, () => app.changeDetail(-1));
   const map = {
-    t: () => app.toggle('classes'),
+    t: () => app.cycleFileColors(),
     f: () => app.toggle('free'),
     u: () => app.toggle('unknown'),
     l: () => app.toggle('watch'),

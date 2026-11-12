@@ -10,7 +10,7 @@ export function closeMenu() {
 }
 
 /**
- * Shows a menu. Items: `{label, run, swatch?}`, `{sep: true}` or `{tags: [{on, run}, ...]}`.
+ * Shows a menu. Items: `{label, run, swatch?, on?}`, `{sep: true}` or `{tags: [{on, run}, ...]}`.
  */
 export function openMenu(items, x, y) {
   const m = $('menu');
@@ -24,7 +24,7 @@ export function openMenu(items, x, y) {
 function row(item) {
   if (item.sep) return el('hr');
   if (item.tags) return tagRow(item.tags);
-  const b = el('button');
+  const b = el('button', item.on ? 'on' : '');
   if (item.swatch) {
     const sw = el('span', 'sw');
     sw.style.background = item.swatch;

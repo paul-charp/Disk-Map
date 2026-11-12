@@ -115,7 +115,8 @@ export class Painter {
     const d = list.depth(i);
     if (f & F.FILE) {
       const c = list.cls(i);
-      return this.scheme.file(d, c >= 0 ? this.classRgb[c] : undefined);
+      if (c < 0) return this.scheme.file(d);
+      return this.scheme.file(d, f & F.AGE ? this.scheme.age[c] : this.classRgb[c]);
     }
     return this.scheme.folder(d);
   }
