@@ -24,10 +24,10 @@ Requires Windows 10 or 11 and the WebView2 runtime (part of Windows 11 and curre
 
 | Asset | Kind | Settings | Data (snapshots, log) |
 | --- | --- | --- | --- |
-| `diskmap-vX.Y.Z-windows-x64-setup.exe` | Installer, per user, no admin | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\` |
+| `diskmap-vX.Y.Z-windows-x64-setup.exe` | Installer, per user, no admin | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
 | `diskmap-vX.Y.Z-windows-x64.zip` | Portable | `diskmap.toml` next to the exe | `data\` next to the exe |
 
-- Installer: installs to `%LOCALAPPDATA%\diskmap` by default, adds a Start menu shortcut and, from a checkbox on the last page, a desktop shortcut. It downloads WebView2 only if it is missing. Uninstall from Windows Settings, Apps; settings and data are kept unless "Delete the application data" is ticked.
+- Installer: installs to `%LOCALAPPDATA%\diskmap` by default (data in its `data` subfolder), adds a Start menu shortcut and, from a checkbox on the last page, a desktop shortcut. It downloads WebView2 only if it is missing. Uninstall from Windows Settings, Apps; settings and data are kept unless "Delete the application data" is ticked.
 - Portable: unzip anywhere. The `portable` file next to `diskmap.exe` keeps everything in that folder; delete it to use the installed locations instead.
 - `DISKMAP_CONFIG` overrides the settings path in both modes.
 

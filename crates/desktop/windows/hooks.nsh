@@ -7,6 +7,6 @@
   ${AndIf} $UpdateMode <> 1
     SetShellVarContext current
     RmDir /r "$APPDATA\diskmap"
-    RmDir /r "$LOCALAPPDATA\diskmap"
+    RmDir /r "$LOCALAPPDATA\diskmap" ; install folder and its data subfolder
   ${EndIf}
 !macroend

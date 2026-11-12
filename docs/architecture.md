@@ -109,6 +109,6 @@ The environment variable `DISKMAP_PERF` names a file that receives one timing li
 | Mode | When | Config | Data (snapshots, timeline, logs) |
 | --- | --- | --- | --- |
 | Portable | a `portable` file or a `diskmap.toml` next to the exe | `<exe dir>\diskmap.toml` | `<exe dir>\data\` |
-| Installed | otherwise | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\` |
+| Installed | otherwise | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
 
-The release zip ships the `portable` marker. An existing `diskmap.toml` next to the exe keeps 0.1.0 setups portable. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.
+The release zip ships the `portable` marker. The installer puts the exe in `%LOCALAPPDATA%\diskmap\`, so installed data sits in its `data\` subfolder, like portable. An existing `diskmap.toml` next to the exe keeps 0.1.0 setups portable. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.

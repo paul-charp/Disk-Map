@@ -30,7 +30,7 @@ Points in wave 2 depend on wave 1 branches and start after those merge.
 ## Storage paths
 
 - Portable: a `portable` marker file (or an existing `diskmap.toml`) next to the exe. Everything stays next to the exe.
-- Installed: settings in `%APPDATA%\diskmap\diskmap.toml`; snapshots, timeline and logs in `%LOCALAPPDATA%\diskmap\`.
+- Installed: settings in `%APPDATA%\diskmap\diskmap.toml`; snapshots, timeline and logs in `%LOCALAPPDATA%\diskmap\data\`.
 - `DISKMAP_CONFIG` still overrides the config path.
 
 ## Snapshots and timeline
