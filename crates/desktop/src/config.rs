@@ -112,7 +112,8 @@ fn parse_hex(s: &str) -> [u8; 3] {
     [(v >> 16) as u8, (v >> 8) as u8, v as u8]
 }
 
-fn config_path() -> Option<PathBuf> {
+/// Path of the configuration file.
+pub fn config_path() -> Option<PathBuf> {
     if let Some(p) = std::env::var_os("DISKMAP_CONFIG") {
         return Some(PathBuf::from(p));
     }

@@ -216,3 +216,10 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
 .cfoot .btn { height: 24px; }
 .keys { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; padding: 6px 0; }
 .keys .mono { color: var(--muted); }
+.ahead { display: flex; align-items: baseline; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ahead .logo { width: 32px; height: 32px; margin: 0; align-self: center; }
+.aname { font-size: 16px; font-weight: 600; }
+.alinks { display: flex; gap: 6px; }
+.alinks .btn { height: 24px; }
+.acfg { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.apath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }

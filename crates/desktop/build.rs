@@ -29,6 +29,9 @@ const COMMANDS: &[&str] = &[
     "browse",
     "elevate",
     "log_perf",
+    "about",
+    "open_link",
+    "reveal_config",
 ];
 
 fn main() {

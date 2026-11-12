@@ -83,6 +83,9 @@ fn main() {
             commands::browse,
             commands::elevate,
             commands::log_perf,
+            commands::about,
+            commands::open_link,
+            commands::reveal_config,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

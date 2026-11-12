@@ -23,6 +23,7 @@ const PATHS = {
   side: 'M2.5 3.5h11v9h-11zM10 3.5v9',
   filter: 'M2.5 3.5h11L9.5 8.5V13l-3-1.5V8.5z',
   copy: 'M5.5 5.5h7v7h-7zM3.5 10.5v-7h7',
+  info: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 7.3v3.7M8 5.2h.01',
   folder: 'M2 4.5h4l1.2 1.5H14v6.5H2z',
 };
 

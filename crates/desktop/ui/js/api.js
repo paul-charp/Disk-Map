@@ -33,6 +33,9 @@ export const api = {
   browse: () => invoke('browse'),
   elevate: (tab) => invoke('elevate', { tab }),
   perf: (line) => invoke('log_perf', { line }),
+  about: () => invoke('about'),
+  openLink: (link) => invoke('open_link', { link }),
+  revealConfig: () => invoke('reveal_config'),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));

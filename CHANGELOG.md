@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- About section in Settings (version, license, GitHub and Issues links, config path with Reveal, build), opened from an info button in the toolbar.
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.
