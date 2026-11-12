@@ -18,6 +18,7 @@ export function initToolbar(app) {
   $('b-more').onclick = () => app.changeDetail(1);
   $('b-side').onclick = () => app.toggle('side');
   $('b-settings').onclick = () => app.parts.settings.open();
+  $('b-about').onclick = () => app.parts.settings.open('About');
   $('b-export').onclick = (e) => exportMenu(app, e.currentTarget);
   for (const id of Object.keys(TOGGLES)) $(id).onclick = () => app.toggle(KIND[id]);
   $('b-watch').onclick = () => app.toggle('watch');

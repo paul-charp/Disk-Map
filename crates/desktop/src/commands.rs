@@ -5,15 +5,18 @@ use crate::args::{Args, Flags};
 use crate::config::{ClassDef, Config, class_defs, hex};
 use crate::elevate;
 use crate::fmt;
+use crate::log;
 use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
+use crate::paths;
 use crate::session::{Session, find_by_names};
 use crate::shell;
 use crate::state::{
-    AppState, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
+    AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
 use crate::watch;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
 use diskmap_core::export::{self, Format, Row, Source};
+use diskmap_core::log::Level;
 use diskmap_core::tags::Tag;
 use diskmap_core::tree::{NodeId, NodeKind};
 use diskmap_scan::volume::{DriveKind, list_drives};
@@ -21,9 +24,41 @@ use serde::Serialize;
 use std::io::Write;
 use tauri::{AppHandle, State, WebviewWindow};
 
-type Res<T> = Result<T, String>;
+type Res<T> = Result<T, CmdError>;
 
-const NO_SESSION: &str = "No scan";
+/// Error of a command, sent to the front end as its text. Creating one logs it.
+#[derive(Debug)]
+pub struct CmdError(String);
+
+impl Serialize for CmdError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.0)
+    }
+}
+
+impl From<String> for CmdError {
+    fn from(message: String) -> Self {
+        log::error("command", message.clone());
+        CmdError(message)
+    }
+}
+
+impl From<&str> for CmdError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+/// An error that is expected in normal use and not logged, such as a call racing a closed tab.
+struct Quiet(&'static str);
+
+impl From<Quiet> for CmdError {
+    fn from(q: Quiet) -> Self {
+        CmdError(q.0.to_string())
+    }
+}
+
+const NO_SESSION: Quiet = Quiet("No scan");
 
 /// Name and colour of a file class.
 #[derive(Serialize)]
@@ -79,7 +114,7 @@ pub async fn boot(state: State<'_, AppState>) -> Res<Boot> {
 /// Shows the main window; it starts hidden so the first frame is already themed.
 #[tauri::command]
 pub async fn show_window(window: WebviewWindow) -> Res<()> {
-    window.show().map_err(|e| e.to_string())
+    Ok(window.show().map_err(|e| e.to_string())?)
 }
 
 /// Stores new settings, applies their side effects and returns the class list.
@@ -297,7 +332,7 @@ pub async fn set_toggle(
         "classes" => s.view.class_colors = on,
         "free" => s.view.show_free = on,
         "unknown" => s.view.show_unknown = on,
-        _ => return Err(format!("Unknown toggle {kind}")),
+        _ => return Err(format!("Unknown toggle {kind}").into()),
     }
     Ok(status(&g, tab))
 }
@@ -318,6 +353,7 @@ pub struct Details {
     items: Option<u32>,
     class: String,
     tag: u8,
+    pinned: bool,
 }
 
 fn special_details(s: &Session, id: i32) -> Details {
@@ -362,10 +398,12 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
     } else {
         String::new()
     };
+    let path = tree.full_path(id);
     Ok(Details {
         id: node,
         name: tree.name(id).to_string(),
-        path: tree.full_path(id),
+        pinned: !is_file && g.cfg.is_pinned(&path),
+        path,
         kind: if is_file { "file" } else { "folder" },
         size: fmt::size(logical),
         disk: fmt::size(size),
@@ -484,6 +522,65 @@ pub async fn reveal_node(state: State<'_, AppState>, tab: TabId, node: i32) -> R
     Ok(())
 }
 
+/// Opens a terminal in a folder, or in the folder holding a file.
+#[tauri::command]
+pub async fn terminal_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<()> {
+    let dir = {
+        let g = state.lock();
+        let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+        let id = node_id(s, node).ok_or("Unknown node")?;
+        let tree = s.scan.tree();
+        let dir = match tree.get(id).kind {
+            NodeKind::File => tree.parent(id).unwrap_or(id),
+            _ => id,
+        };
+        tree.full_path(dir)
+    };
+    Ok(shell::terminal(&dir)?)
+}
+
+/// Shows the Explorer Properties dialog of a node.
+#[tauri::command]
+pub async fn properties_node(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tab: TabId,
+    node: i32,
+) -> Res<()> {
+    let path = path_of(&state, tab, node)?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(shell::properties(&path));
+    })
+    .map_err(|e| e.to_string())?;
+    Ok(rx.recv().map_err(|e| e.to_string())??)
+}
+
+/// Moves a node to the Recycle Bin and drops it from the tree.
+#[tauri::command]
+pub async fn recycle_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<Status> {
+    let (path, rel) = {
+        let g = state.lock();
+        let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+        let id = node_id(s, node).ok_or("Unknown node")?;
+        if id == s.scan.tree().root() {
+            return Err("Scan root".into());
+        }
+        (s.scan.tree().full_path(id), s.rel_path(id))
+    };
+    tauri::async_runtime::spawn_blocking(move || shell::recycle(&path))
+        .await
+        .map_err(|e| e.to_string())??;
+    let mut g = state.lock();
+    let Inner {
+        sessions, classes, ..
+    } = &mut *g;
+    if let Some(s) = sessions.get_mut(&tab) {
+        s.forget_path(&rel, classes);
+    }
+    Ok(status(&g, tab))
+}
+
 /// A mounted drive for the start screen.
 #[derive(Serialize)]
 pub struct DriveRow {
@@ -494,18 +591,32 @@ pub struct DriveRow {
     share: f32,
 }
 
-/// A recent scan for the start screen.
+/// A recent scan or a pinned folder for the start screen.
 #[derive(Serialize)]
 pub struct RecentRow {
     path: String,
     size: String,
+    pinned: bool,
 }
 
 /// Start screen content.
 #[derive(Serialize)]
 pub struct StartInfo {
     drives: Vec<DriveRow>,
+    pins: Vec<RecentRow>,
     recent: Vec<RecentRow>,
+}
+
+fn path_row(cfg: &Config, path: &str, size: u64, pinned: bool) -> RecentRow {
+    RecentRow {
+        path: path.to_string(),
+        size: if size > 0 {
+            fmt::size(size)
+        } else {
+            String::new()
+        },
+        pinned: pinned || cfg.is_pinned(path),
+    }
 }
 
 fn kind_name(kind: DriveKind) -> &'static str {
@@ -517,7 +628,7 @@ fn kind_name(kind: DriveKind) -> &'static str {
     }
 }
 
-/// Drives and recent scans.
+/// Drives, pinned folders and recent scans.
 #[tauri::command]
 pub async fn start_info(state: State<'_, AppState>) -> Res<StartInfo> {
     let drives = list_drives()
@@ -533,21 +644,33 @@ pub async fn start_info(state: State<'_, AppState>) -> Res<StartInfo> {
             }
         })
         .collect();
-    let recent = state
-        .lock()
-        .cfg
+    let g = state.lock();
+    let cfg = &g.cfg;
+    let pins = cfg
+        .pins
+        .iter()
+        .map(|p| path_row(cfg, p, cfg.known_size(p), true))
+        .collect();
+    let recent = cfg
         .recent
         .iter()
-        .map(|r| RecentRow {
-            path: r.path.clone(),
-            size: if r.size > 0 {
-                fmt::size(r.size)
-            } else {
-                String::new()
-            },
-        })
+        .map(|r| path_row(cfg, &r.path, r.size, false))
         .collect();
-    Ok(StartInfo { drives, recent })
+    Ok(StartInfo {
+        drives,
+        pins,
+        recent,
+    })
+}
+
+/// Pins or unpins a folder; returns whether it is pinned now.
+#[tauri::command]
+pub async fn set_pin(state: State<'_, AppState>, path: String, on: bool) -> Res<bool> {
+    let mut g = state.lock();
+    if g.cfg.set_pin(&path, on) {
+        g.cfg.save();
+    }
+    Ok(g.cfg.is_pinned(&path))
 }
 
 /// Relaunches elevated with the paths of the open tabs and quits when that worked; false when it was cancelled.
@@ -602,7 +725,7 @@ fn export_rows(
             .and_then(|n| node_id(s, n))
             .or(s.selection)
             .ok_or("No selection")?,
-        _ => return Err(format!("Unknown scope {scope}")),
+        _ => return Err(format!("Unknown scope {scope}").into()),
     };
     Ok(src.subtree(root, depth))
 }
@@ -695,6 +818,81 @@ pub async fn log_perf(line: String) -> Res<()> {
             .open(path)
     {
         let _ = writeln!(f, "{line}");
+    }
+    Ok(())
+}
+
+/// Log entries held, oldest first.
+#[tauri::command]
+pub async fn log_entries(state: State<'_, AppState>) -> Res<Vec<log::Entry>> {
+    Ok(state.log.entries())
+}
+
+/// Forgets the log entries held.
+#[tauri::command]
+pub async fn log_clear(state: State<'_, AppState>) -> Res<()> {
+    state.log.clear();
+    Ok(())
+}
+
+/// Logs an entry from the front end, e.g. an uncaught script error.
+#[tauri::command]
+pub async fn log_js(state: State<'_, AppState>, level: String, message: String) -> Res<()> {
+    state.log.push(Level::parse(&level), "ui", message);
+    Ok(())
+}
+
+/// Application facts for the About section.
+#[derive(Serialize)]
+pub struct About {
+    name: &'static str,
+    version: &'static str,
+    license: &'static str,
+    config: String,
+    target: String,
+    profile: &'static str,
+}
+
+/// Version, license, configuration path and build of this binary.
+#[tauri::command]
+pub async fn about() -> Res<About> {
+    Ok(About {
+        name: env!("CARGO_PKG_NAME"),
+        version: env!("CARGO_PKG_VERSION"),
+        license: env!("CARGO_PKG_LICENSE"),
+        config: paths::config_path()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        target: format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
+        profile: if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
+    })
+}
+
+/// Opens a project page in the default browser: `repo` or `issues`.
+#[tauri::command]
+pub async fn open_link(link: String) -> Res<()> {
+    let repo = env!("CARGO_PKG_REPOSITORY");
+    let url = match link.as_str() {
+        "repo" => repo.to_string(),
+        "issues" => format!("{repo}/issues"),
+        _ => return Err(format!("Unknown link: {link}").into()),
+    };
+    shell::open(&url);
+    Ok(())
+}
+
+/// Shows the configuration file in Explorer, or its folder when the file does not exist yet.
+#[tauri::command]
+pub async fn reveal_config() -> Res<()> {
+    let path = paths::config_path().ok_or("No config path")?;
+    if path.exists() {
+        shell::reveal(&path.to_string_lossy());
+    } else if let Some(dir) = path.parent() {
+        shell::open(&dir.to_string_lossy());
     }
     Ok(())
 }

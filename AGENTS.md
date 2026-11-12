@@ -67,11 +67,12 @@ Test switches (`crates/desktop/src/args.rs`), applied after the scan of the last
 - `--tooltip <rel>`: hover the node and show its tooltip.
 - `--detail <n>`: set the detail level.
 - `--side`: show the side panel.
-- `--settings <section>`: open Settings at startup (Appearance, Map, Scan, Classes, Keys); applied at startup.
+- `--settings <section>`: open Settings at startup (Appearance, Map, Scan, Classes, Keys, About); applied at startup.
 - `--theme <name>`: theme for this run; applied at startup.
 - `--scale <percent>`: UI scale for this run; applied at startup.
+- `--log`: show the Output panel; applied at startup.
 
-`DISKMAP_CONFIG` sets the config file path. `DISKMAP_PERF` names a file that gets one layout timing line per layout.
+`DISKMAP_CONFIG` sets the config file path. Without it, a build with no `portable` file next to the exe uses `%APPDATA%\diskmap\diskmap.toml` (see `docs/architecture.md`, Storage paths). `DISKMAP_PERF` names a file that gets one layout timing line per layout.
 
 ## MFT and elevation
 

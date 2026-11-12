@@ -22,6 +22,7 @@ jobs:
           $name = "diskmap-${{ github.ref_name }}-windows-x64"
           New-Item -ItemType Directory $name | Out-Null
           Copy-Item target\release\diskmap.exe, LICENSE, README.md $name
+          New-Item -ItemType File "$name\portable" | Out-Null
           Compress-Archive -Path $name\* -DestinationPath "$name.zip"
       - uses: softprops/action-gh-release@v2
         with:

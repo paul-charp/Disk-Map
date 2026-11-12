@@ -1,8 +1,10 @@
-//! Settings persisted in `diskmap.toml` next to the executable (or at `DISKMAP_CONFIG`).
+//! Settings persisted in `diskmap.toml` at the location chosen by `paths`.
 
+use crate::{log, paths};
 use diskmap_core::classes::{FileClass, FileClasses};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 
 const MAX_RECENT: usize = 8;
 const SCALE_RANGE: (u32, u32) = (80, 200);
@@ -44,6 +46,8 @@ pub struct ClassDef {
 pub struct Config {
     pub theme: String,
     pub recent: Vec<Recent>,
+    /// Pinned folders, normalised, without duplicates.
+    pub pins: Vec<String>,
     /// Defaults for new tabs.
     pub detail: u32,
     pub class_colors: bool,
@@ -71,6 +75,7 @@ impl Default for Config {
         Config {
             theme: "graphite".into(),
             recent: Vec::new(),
+            pins: Vec::new(),
             detail: 3,
             class_colors: false,
             show_free: true,
@@ -112,28 +117,48 @@ fn parse_hex(s: &str) -> [u8; 3] {
     [(v >> 16) as u8, (v >> 8) as u8, v as u8]
 }
 
-fn config_path() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("DISKMAP_CONFIG") {
-        return Some(PathBuf::from(p));
-    }
-    Some(std::env::current_exe().ok()?.parent()?.join("diskmap.toml"))
+/// Path of the log file, in the data folder.
+pub fn log_path() -> Option<PathBuf> {
+    Some(paths::ensure_data_dir().ok()?.join("diskmap.log"))
+}
+
+fn read(path: &Path) -> Option<Config> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == ErrorKind::NotFound => return None,
+        Err(e) => {
+            log::warn("config", format!("Cannot read {}: {e}", path.display()));
+            return None;
+        }
+    };
+    toml::from_str(&text)
+        .map_err(|e| log::error("config", format!("Invalid {}: {e}", path.display())))
+        .ok()
 }
 
 impl Config {
     /// Loads the file, falling back to defaults.
     pub fn load() -> Self {
-        let mut cfg: Config = config_path()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|s| toml::from_str(&s).ok())
+        let mut cfg = paths::config_path()
+            .and_then(|p| read(&p))
             .unwrap_or_default();
         cfg.sanitize();
         cfg
     }
 
-    /// Writes the file; failures are ignored.
+    /// Writes the file; failures are logged.
     pub fn save(&self) {
-        if let (Some(path), Ok(text)) = (config_path(), toml::to_string_pretty(self)) {
-            let _ = std::fs::write(path, text);
+        let Some(path) = paths::config_path() else {
+            return;
+        };
+        if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let result = toml::to_string_pretty(self)
+            .map_err(|e| e.to_string())
+            .and_then(|text| std::fs::write(&path, text).map_err(|e| e.to_string()));
+        if let Err(e) = result {
+            log::error("config", format!("Cannot save {}: {e}", path.display()));
         }
     }
 
@@ -149,6 +174,9 @@ impl Config {
         if !BACKENDS.contains(&self.backend.as_str()) {
             self.backend = "auto".into();
         }
+        for p in std::mem::take(&mut self.pins) {
+            self.set_pin(&p, true);
+        }
         for c in &mut self.classes {
             c.name = c.name.trim().to_string();
             if c.name.is_empty() {
@@ -157,9 +185,10 @@ impl Config {
         }
     }
 
-    /// Replaces every setting but the recent list with those of `new`.
+    /// Replaces every setting but the recent list and the pins with those of `new`.
     pub fn replace(&mut self, mut new: Config) {
         new.recent = std::mem::take(&mut self.recent);
+        new.pins = std::mem::take(&mut self.pins);
         new.sanitize();
         *self = new;
     }
@@ -225,6 +254,55 @@ impl Config {
             r.size = size;
         }
     }
+
+    /// Whether `path` is pinned.
+    pub fn is_pinned(&self, path: &str) -> bool {
+        let path = normalize(path);
+        self.pins.iter().any(|p| same_path(p, &path))
+    }
+
+    /// Pins or unpins `path`; returns whether the list changed.
+    pub fn set_pin(&mut self, path: &str, on: bool) -> bool {
+        let path = normalize(path);
+        let before = self.pins.len();
+        if !on {
+            self.pins.retain(|p| !same_path(p, &path));
+        } else if !path.is_empty() && !self.is_pinned(&path) {
+            self.pins.push(path);
+        }
+        self.pins.len() != before
+    }
+
+    /// Size of the last scan of `path`, 0 when unknown.
+    pub fn known_size(&self, path: &str) -> u64 {
+        let path = normalize(path);
+        self.recent
+            .iter()
+            .find(|r| same_path(&normalize(&r.path), &path))
+            .map_or(0, |r| r.size)
+    }
+}
+
+/// Trims spaces and trailing separators, keeping roots such as `C:\` and `/`.
+pub fn normalize(path: &str) -> String {
+    let path = path.trim();
+    let trimmed = path.trim_end_matches(['\\', '/']);
+    if trimmed.is_empty() {
+        return path.chars().take(1).collect();
+    }
+    if trimmed.ends_with(':') && trimmed.len() < path.len() {
+        return format!("{trimmed}\\");
+    }
+    trimmed.to_string()
+}
+
+/// Path equality, case-insensitive on Windows.
+pub fn same_path(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        a.to_lowercase() == b.to_lowercase()
+    } else {
+        a == b
+    }
 }
 
 #[cfg(test)]
@@ -245,6 +323,36 @@ mod tests {
         assert_eq!(cfg.recent.len(), 1);
         assert_eq!((cfg.ui_scale, cfg.min_tile), (200, 2));
         assert_eq!(cfg.map_text, "medium");
+    }
+
+    #[test]
+    fn pins_are_normalised_and_unique() {
+        let mut cfg = Config::default();
+        assert!(cfg.set_pin("C:\\data\\ ", true));
+        assert!(!cfg.set_pin("C:\\data", true));
+        assert!(cfg.set_pin("D:\\", true));
+        assert_eq!(cfg.pins, ["C:\\data", "D:\\"]);
+        assert!(cfg.is_pinned("C:\\data\\"));
+        assert!(cfg.set_pin("C:\\data", false));
+        assert!(!cfg.set_pin("C:\\data", false));
+        assert_eq!(cfg.pins, ["D:\\"]);
+        assert_eq!(normalize("D:"), "D:");
+        assert_eq!(normalize("/"), "/");
+    }
+
+    #[test]
+    fn sanitize_dedups_pins_and_replace_keeps_them() {
+        let mut cfg = Config {
+            pins: vec!["C:\\a\\".into(), "C:\\a".into(), " ".into()],
+            ..Config::default()
+        };
+        cfg.sanitize();
+        assert_eq!(cfg.pins, ["C:\\a"]);
+        cfg.push_recent("C:\\a");
+        cfg.set_recent_size("C:\\a", 42);
+        assert_eq!(cfg.known_size("C:\\a\\"), 42);
+        cfg.replace(Config::default());
+        assert_eq!(cfg.pins, ["C:\\a"]);
     }
 
     #[test]

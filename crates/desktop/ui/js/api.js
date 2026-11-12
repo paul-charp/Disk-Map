@@ -29,13 +29,24 @@ export const api = {
   findNode: (tab, path) => invoke('find_node', { tab, path }),
   open: (tab, node) => invoke('open_node', { tab, node }),
   reveal: (tab, node) => invoke('reveal_node', { tab, node }),
+  terminal: (tab, node) => invoke('terminal_node', { tab, node }),
+  properties: (tab, node) => invoke('properties_node', { tab, node }),
+  recycle: (tab, node) => invoke('recycle_node', { tab, node }),
   startInfo: () => invoke('start_info'),
+  setPin: (path, on) => invoke('set_pin', { path, on }),
   browse: () => invoke('browse'),
   exportTo: (tab, scope, format, depth = null, node = null, path = null) =>
     invoke('export', { tab, scope, format, depth, node, path }),
   elevate: (tab) => invoke('elevate', { tab }),
   perf: (line) => invoke('log_perf', { line }),
+  logEntries: () => invoke('log_entries'),
+  logClear: () => invoke('log_clear'),
+  logJs: (level, message) => invoke('log_js', { level, message }),
+  about: () => invoke('about'),
+  openLink: (link) => invoke('open_link', { link }),
+  revealConfig: () => invoke('reveal_config'),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));
 export const onDrop = (fn) => listen('dropped', (e) => fn(e.payload));
+export const onLog = (fn) => listen('log', (e) => fn(e.payload));

@@ -10,7 +10,7 @@ export function closeMenu() {
 }
 
 /**
- * Shows a menu. Items: `{label, run, swatch?}`, `{sep: true}` or `{tags: [{on, run}, ...]}`.
+ * Shows a menu. Items: `{label, run, swatch?, danger?}`, `{title}`, `{sep: true}` or `{tags: [{on, run}, ...]}`.
  */
 export function openMenu(items, x, y) {
   const m = $('menu');
@@ -24,7 +24,8 @@ export function openMenu(items, x, y) {
 function row(item) {
   if (item.sep) return el('hr');
   if (item.tags) return tagRow(item.tags);
-  const b = el('button');
+  if (item.title) return titleRow(item.title);
+  const b = el('button', item.danger ? 'danger' : '');
   if (item.swatch) {
     const sw = el('span', 'sw');
     sw.style.background = item.swatch;
@@ -36,6 +37,18 @@ function row(item) {
     item.run();
   };
   return b;
+}
+
+function titleRow(text) {
+  const t = el('div', 'title');
+  t.textContent = text;
+  t.title = text;
+  return t;
+}
+
+/** Asks before an action: a title row, the action and Cancel at the same spot. */
+export function confirmMenu(title, label, run, x, y) {
+  openMenu([{ title }, { sep: true }, { label, run, danger: true }, { label: 'Cancel', run: () => {} }], x, y);
 }
 
 function tagRow(tags) {

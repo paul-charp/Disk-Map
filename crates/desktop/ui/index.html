@@ -35,7 +35,8 @@
           <span id="viewsize" class="mono muted"></span>
           <span class="sep"></span>
           <button class="ib" id="b-export" data-icon="export" title="Export"></button>
-          <button class="ib" id="b-side"data-icon="side" title="Side panel (Ctrl+B)"></button>
+          <button class="ib" id="b-side" data-icon="side" title="Side panel (Ctrl+B)"></button>
+          <button class="ib" id="b-about" data-icon="info" title="About"></button>
           <button class="ib" id="b-settings" data-icon="gear" title="Settings (Ctrl+,)"></button>
         </div>
         <div id="filterbar" class="row">
@@ -47,17 +48,6 @@
         <div id="main">
           <div id="mapwrap"><canvas id="map"></canvas></div>
           <aside id="side" hidden></aside>
-        </div>
-        <div id="status">
-          <span id="st-state"><i id="st-dot"></i><span id="st-word">Ready</span></span>
-          <span id="st-prog" hidden><i></i></span>
-          <span id="st-count" class="mono"></span>
-          <span id="st-path"></span>
-          <span id="st-err" class="mono"></span>
-          <span id="st-pct" class="mono"></span>
-          <button class="chip warn" id="st-stale" hidden>Stale</button>
-          <span id="st-backend" class="mono"></span>
-          <button class="chip" id="st-elevate" hidden>Elevate</button>
         </div>
       </div>
 
@@ -80,10 +70,47 @@
           <div id="start-err"></div>
           <h2>DRIVES</h2>
           <div id="start-drives"></div>
+          <div id="start-pinned" hidden>
+            <h2>PINNED</h2>
+            <div id="start-pins"></div>
+          </div>
           <h2>RECENT</h2>
           <div id="start-recent"></div>
         </div>
       </div>
+    </div>
+    <div id="output" hidden>
+      <div id="out-sash"></div>
+      <div class="phead">
+        <span class="ptitle">OUTPUT</span>
+        <span class="grow"></span>
+        <div class="seg" id="out-level">
+          <button data-level="info" title="All levels">All</button>
+          <button data-level="warn" title="Warnings and errors">Warnings</button>
+          <button data-level="error" title="Errors only">Errors</button>
+        </div>
+        <span class="sep"></span>
+        <button class="ib" id="out-copy" data-icon="copy" title="Copy"></button>
+        <button class="ib" id="out-clear" data-icon="trash" title="Clear"></button>
+        <button class="ib" id="out-close" data-icon="close" title="Close (Ctrl+`)"></button>
+      </div>
+      <div id="out-list"></div>
+    </div>
+    <div id="status">
+      <span id="st-state"><i id="st-dot"></i><span id="st-word">Ready</span></span>
+      <span id="st-prog" hidden><i></i></span>
+      <span id="st-count" class="mono"></span>
+      <span id="st-path"></span>
+      <span id="st-msg"></span>
+      <span id="st-err" class="mono"></span>
+      <span id="st-pct" class="mono"></span>
+      <button class="chip warn" id="st-stale" hidden>Stale</button>
+      <span id="st-backend" class="mono"></span>
+      <button class="chip" id="st-elevate" hidden>Elevate</button>
+      <button class="sbtn" id="st-log" title="Output (Ctrl+`)">
+        <span id="st-log-e" class="cnt"><svg data-icon="error"></svg><b>0</b></span>
+        <span id="st-log-w" class="cnt"><svg data-icon="warning"></svg><b>0</b></span>
+      </button>
     </div>
   </div>
 

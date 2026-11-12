@@ -2,6 +2,8 @@
 import { api } from './api.js';
 import { $ } from './dom.js';
 
+const MSG_MS = 6000;
+
 const probe = document.createElement('canvas').getContext('2d');
 
 /** Shortens text to `max` pixels by replacing its middle with an ellipsis. */
@@ -18,7 +20,7 @@ function elide(text, max, font) {
   return text;
 }
 
-/** Wires the status bar; returns `{update(status), setPath(text)}`. */
+/** Wires the status bar; returns `{update(status), setPath(text), flash(text)}`. */
 export function initStatus(app) {
   $('st-elevate').onclick = () => api.elevate(app.tab.id);
   $('st-stale').onclick = () => app.toggleScan();
@@ -29,7 +31,15 @@ export function initStatus(app) {
     path.textContent = elide(full, path.clientWidth, font);
   };
   new ResizeObserver(draw).observe(path);
+  const msg = $('st-msg');
+  let msgTimer = 0;
   return {
+    flash: (text) => {
+      msg.textContent = text;
+      msg.title = text;
+      clearTimeout(msgTimer);
+      msgTimer = setTimeout(() => (msg.textContent = msg.title = ''), MSG_MS);
+    },
     setPath: (text) => {
       full = text;
       draw();
@@ -55,8 +65,8 @@ function update(st) {
   prog.classList.toggle('busy', !st.volume);
   prog.firstElementChild.style.width = st.volume ? `${st.volume.percent}%` : '';
   const pct = st.volume && st.running ? `${st.volume.percent}% · ` : '';
-  const totals = `${st.files.toLocaleString()} files · ${st.dirs.toLocaleString()} folders · ${st.scanned}`;
-  $('st-count').textContent = st.active ? `${pct}${totals}${st.running ? '' : ` · ${seconds(st.elapsed_ms)}`}` : '';
+  const totals = () => `${st.files.toLocaleString()} files · ${st.dirs.toLocaleString()} folders · ${st.scanned}`;
+  $('st-count').textContent = st.active ? `${pct}${totals()}${st.running ? '' : ` · ${seconds(st.elapsed_ms)}`}` : '';
   const err = $('st-err');
   err.textContent = st.errors ? `${st.errors.toLocaleString()} errors` : '';
   err.title = st.error_samples?.join(String.fromCharCode(10)) ?? '';

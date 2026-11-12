@@ -74,6 +74,11 @@ app.clearTags = () => app.act(api.clearTags(app.tab.id));
 app.reveal = (node) => api.reveal(app.tab.id, node);
 app.open = (node) => api.open(app.tab.id, node);
 
+/** Runs a shell action and shows its error in the status bar. */
+const shellAct = (promise) => promise.catch((e) => app.parts.statusbar.flash(String(e)));
+app.terminal = (node) => shellAct(api.terminal(app.tab.id, node));
+app.properties = (node) => shellAct(api.properties(app.tab.id, node));
+app.recycle = (node) => shellAct(app.act(api.recycle(app.tab.id, node)));
 /** Exports a scope (`view`, `selection`, `files`, `folders`) down to the detail level; reports in the status bar. */
 app.exportTo = async (scope, format, node = null) => {
   try {
@@ -155,7 +160,10 @@ const showMode = () => {
   const map = app.tab.mode === 'map';
   $('view').hidden = !map;
   $('start').hidden = map;
-  if (!map) app.parts.start.show(app.tab);
+  if (map) return;
+  app.parts.start.show(app.tab);
+  app.parts.statusbar.update(app.tab.status);
+  app.parts.statusbar.setPath('');
 };
 
 /** Keeps the field text of the leaving tab. */
