@@ -80,7 +80,7 @@ The result is per-node allocated and logical sizes, the match count and the fold
 
 ## Config file
 
-`diskmap.toml` next to the executable, or the path in `DISKMAP_CONFIG`. It is loaded at start, written when settings change and after scans (recent list). Missing or invalid files give the defaults; values are clamped on load.
+`diskmap.toml` at the location below, or the path in `DISKMAP_CONFIG`. It is loaded at start, written when settings change and after scans (recent list). Missing or invalid files give the defaults; values are clamped on load.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
@@ -100,3 +100,14 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | `classes` | six defaults | File classes: name, `#rrggbb`, extensions |
 
 The environment variable `DISKMAP_PERF` names a file that receives one timing line per layout.
+
+## Storage paths
+
+`paths.rs` picks the mode once at startup:
+
+| Mode | When | Config | Data (snapshots, timeline, logs) |
+| --- | --- | --- | --- |
+| Portable | a `portable` file or a `diskmap.toml` next to the exe | `<exe dir>\diskmap.toml` | `<exe dir>\data\` |
+| Installed | otherwise | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\` |
+
+The release zip ships the `portable` marker. An existing `diskmap.toml` next to the exe keeps 0.1.0 setups portable. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.

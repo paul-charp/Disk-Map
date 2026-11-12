@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Portable and installed storage: a `portable` marker (shipped in the zip) or an existing `diskmap.toml` keeps everything next to the exe; otherwise settings go to `%APPDATA%\diskmap` and data to `%LOCALAPPDATA%\diskmap`.
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.
