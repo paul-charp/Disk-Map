@@ -1,8 +1,10 @@
 //! Settings persisted in `diskmap.toml` next to the executable (or at `DISKMAP_CONFIG`).
 
+use crate::log;
 use diskmap_core::classes::{FileClass, FileClasses};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
 
 const MAX_RECENT: usize = 8;
 const SCALE_RANGE: (u32, u32) = (80, 200);
@@ -119,21 +121,41 @@ fn config_path() -> Option<PathBuf> {
     Some(std::env::current_exe().ok()?.parent()?.join("diskmap.toml"))
 }
 
+/// Path of the log file, next to the configuration file.
+pub fn log_path() -> Option<PathBuf> {
+    Some(config_path()?.with_file_name("diskmap.log"))
+}
+
+fn read(path: &Path) -> Option<Config> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == ErrorKind::NotFound => return None,
+        Err(e) => {
+            log::warn("config", format!("Cannot read {}: {e}", path.display()));
+            return None;
+        }
+    };
+    toml::from_str(&text)
+        .map_err(|e| log::error("config", format!("Invalid {}: {e}", path.display())))
+        .ok()
+}
+
 impl Config {
     /// Loads the file, falling back to defaults.
     pub fn load() -> Self {
-        let mut cfg: Config = config_path()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|s| toml::from_str(&s).ok())
-            .unwrap_or_default();
+        let mut cfg = config_path().and_then(|p| read(&p)).unwrap_or_default();
         cfg.sanitize();
         cfg
     }
 
-    /// Writes the file; failures are ignored.
+    /// Writes the file; failures are logged.
     pub fn save(&self) {
-        if let (Some(path), Ok(text)) = (config_path(), toml::to_string_pretty(self)) {
-            let _ = std::fs::write(path, text);
+        let Some(path) = config_path() else { return };
+        let result = toml::to_string_pretty(self)
+            .map_err(|e| e.to_string())
+            .and_then(|text| std::fs::write(&path, text).map_err(|e| e.to_string()));
+        if let Err(e) = result {
+            log::error("config", format!("Cannot save {}: {e}", path.display()));
         }
     }
 

@@ -8,6 +8,7 @@ mod commands;
 mod config;
 mod elevate;
 mod fmt;
+mod log;
 mod marks;
 mod paint;
 mod scan;
@@ -36,6 +37,10 @@ fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
 }
 
 fn main() {
+    log::info(
+        "app",
+        format!("diskmap {} started", env!("CARGO_PKG_VERSION")),
+    );
     let mut cfg = Config::load();
     Args::from_env().apply(&mut cfg);
     let startup = cfg.clone();
@@ -43,6 +48,7 @@ fn main() {
         .manage(AppState::new(cfg))
         .on_window_event(on_window_event)
         .setup(move |app| {
+            log::get().attach(app.handle().clone());
             if let Some(w) = app.get_webview_window("main") {
                 appearance::apply(&w, &startup);
                 std::thread::spawn(move || {
@@ -83,6 +89,9 @@ fn main() {
             commands::browse,
             commands::elevate,
             commands::log_perf,
+            commands::log_entries,
+            commands::log_clear,
+            commands::log_js,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

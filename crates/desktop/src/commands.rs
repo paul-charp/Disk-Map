@@ -5,6 +5,7 @@ use crate::args::{Args, Flags};
 use crate::config::{ClassDef, Config, class_defs, hex};
 use crate::elevate;
 use crate::fmt;
+use crate::log;
 use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
 use crate::session::{Session, find_by_names};
 use crate::shell;
@@ -13,6 +14,7 @@ use crate::state::{
 };
 use crate::watch;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
+use diskmap_core::log::Level;
 use diskmap_core::tags::Tag;
 use diskmap_core::tree::{NodeId, NodeKind};
 use diskmap_scan::volume::{DriveKind, list_drives};
@@ -20,9 +22,41 @@ use serde::Serialize;
 use std::io::Write;
 use tauri::{AppHandle, State, WebviewWindow};
 
-type Res<T> = Result<T, String>;
+type Res<T> = Result<T, CmdError>;
 
-const NO_SESSION: &str = "No scan";
+/// Error of a command, sent to the front end as its text. Creating one logs it.
+#[derive(Debug)]
+pub struct CmdError(String);
+
+impl Serialize for CmdError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.0)
+    }
+}
+
+impl From<String> for CmdError {
+    fn from(message: String) -> Self {
+        log::error("command", message.clone());
+        CmdError(message)
+    }
+}
+
+impl From<&str> for CmdError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+/// An error that is expected in normal use and not logged, such as a call racing a closed tab.
+struct Quiet(&'static str);
+
+impl From<Quiet> for CmdError {
+    fn from(q: Quiet) -> Self {
+        CmdError(q.0.to_string())
+    }
+}
+
+const NO_SESSION: Quiet = Quiet("No scan");
 
 /// Name and colour of a file class.
 #[derive(Serialize)]
@@ -78,7 +112,7 @@ pub async fn boot(state: State<'_, AppState>) -> Res<Boot> {
 /// Shows the main window; it starts hidden so the first frame is already themed.
 #[tauri::command]
 pub async fn show_window(window: WebviewWindow) -> Res<()> {
-    window.show().map_err(|e| e.to_string())
+    Ok(window.show().map_err(|e| e.to_string())?)
 }
 
 /// Stores new settings, applies their side effects and returns the class list.
@@ -296,7 +330,7 @@ pub async fn set_toggle(
         "classes" => s.view.class_colors = on,
         "free" => s.view.show_free = on,
         "unknown" => s.view.show_unknown = on,
-        _ => return Err(format!("Unknown toggle {kind}")),
+        _ => return Err(format!("Unknown toggle {kind}").into()),
     }
     Ok(status(&g, tab))
 }
@@ -584,5 +618,25 @@ pub async fn log_perf(line: String) -> Res<()> {
     {
         let _ = writeln!(f, "{line}");
     }
+    Ok(())
+}
+
+/// Log entries held, oldest first.
+#[tauri::command]
+pub async fn log_entries(state: State<'_, AppState>) -> Res<Vec<log::Entry>> {
+    Ok(state.log.entries())
+}
+
+/// Forgets the log entries held.
+#[tauri::command]
+pub async fn log_clear(state: State<'_, AppState>) -> Res<()> {
+    state.log.clear();
+    Ok(())
+}
+
+/// Logs an entry from the front end, e.g. an uncaught script error.
+#[tauri::command]
+pub async fn log_js(state: State<'_, AppState>, level: String, message: String) -> Res<()> {
+    state.log.push(Level::parse(&level), "ui", message);
     Ok(())
 }
