@@ -9,8 +9,8 @@ diskmap: Windows disk-usage treemap. Rust workspace, Tauri 2 desktop app, plain 
 - `crates/bench`: `diskmap-bench` CLI (`scan`, `compare`, `watch`). Development tool only: excluded from `default-members`, so plain `cargo build` skips it; build it with `-p diskmap-bench` when needed; never ship it in release archives.
 - `crates/desktop`: the app (binary `diskmap`). Backend in `src/` (`commands.rs` Tauri commands, `session.rs`, `state.rs`, `paint.rs`, `config.rs`, `watch.rs`). Front end in `ui/` (`index.html`, `style.css`, `js/*.js`, no build step). `build.rs` lists the commands; a new command goes in `build.rs`, `main.rs` and `ui/js/api.js`.
 - `assets/icon/`: icon source and renders; `crates/desktop/icons/` holds copies.
-- `tools/shots/`: window capture scripts. `docs/`: architecture, scanning, filters.
-- `space_sniffer/` is a local third-party app. Do not read it, edit it or commit it.
+- `tools/shots/`: window capture scripts. `docs/`: architecture, scanning, filters, branching.
+- `.local/` holds local working files (e.g. `.local/space_sniffer/`, a third-party reference app). Do not read `space_sniffer`, edit it or commit anything in `.local/`.
 
 ## Build, test, lint
 
@@ -25,7 +25,8 @@ If `target\release\diskmap.exe` is locked by a running app, add `--target-dir ta
 
 ## Rules
 
-- Never commit `space_sniffer/`, `target/` or `diskmap.toml`.
+- Branches follow `docs/branching.md`: work from `develop`, `main` holds releases only.
+- Never commit `.local/`, `target/` or `diskmap.toml`.
 - Never kill `diskmap.exe` or any process you did not start.
 - Do not commit or push unless asked.
 

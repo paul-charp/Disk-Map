@@ -89,6 +89,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 The front end in `crates/desktop/ui` is plain HTML, CSS and ES modules; there is no Node build step. See [docs/architecture.md](docs/architecture.md) and [docs/scanning.md](docs/scanning.md).
 
+## Contributing
+
+Work happens on `develop` and `feature/*` branches; `main` holds releases. See [docs/branching.md](docs/branching.md).
+
 ## Licence
 
 MIT, see [LICENSE](LICENSE).
