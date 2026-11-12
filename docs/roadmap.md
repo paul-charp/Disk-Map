@@ -35,12 +35,13 @@ Points in wave 2 depend on wave 1 branches and start after those merge.
 
 ## Snapshots and timeline
 
-A full snapshot costs about 40 to 45 bytes per node before compression (parent, kind and attributes, allocated size, mtime, name).
-A system drive of 1.5M nodes is about 65 MB raw, 15 to 25 MB compressed. Daily full snapshots would cost several GB per year, so there are two tiers:
+Measured on a synthetic tree of 1M nodes (`feature/snapshot-core`, no compression): a full snapshot costs 28.6 bytes per node
+with mtime only, 38.6 with all three times. A system drive of 1.5M nodes is about 45 MB, so daily full snapshots still cost
+over 15 GB per year. A timeline point is about 33 bytes per folder kept. There are two tiers:
 
 - Full snapshot: the whole tree, for detailed diffs and compare mode. Keep the last few per root plus manual ones.
-- Timeline point: folders above a size threshold or depth with size and file count, about 10k entries, 100 to 300 KB.
-  Daily for a year is 50 to 100 MB. Retention: daily for 90 days, then weekly, then monthly.
+- Timeline point: folders above a size threshold or depth with size and file count. 1k to 10k entries, 30 to 330 KB.
+  Daily for a year is 10 to 120 MB. Thresholds to tune on a real drive. Retention: daily for 90 days, then weekly, then monthly.
 
 Core modules (no I/O beyond byte buffers): snapshot format, tree to timeline point, diff (grown, shrunk, new, deleted, rolled up to folders).
 
