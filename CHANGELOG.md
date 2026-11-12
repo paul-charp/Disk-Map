@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Portable and installed storage: a `portable` marker (shipped in the zip) or an existing `diskmap.toml` keeps everything next to the exe; otherwise settings go to `%APPDATA%\diskmap` and data to `%LOCALAPPDATA%\diskmap`.
+- Core snapshot format, timeline points and tree diff with top movers (`docs/snapshots.md`).
+- Output panel (Ctrl+`) with the application log: command, scan, watcher, config and script errors, level filter, Copy, Clear; error and warning counts in the status bar; mirrored to `diskmap.log` next to the config file (1 MB, rotated to `.1`); test switch `--log`.
 - About section in Settings (version, license, GitHub and Issues links, config path with Reveal, build), opened from an info button in the toolbar.
 
 ## 0.1.0

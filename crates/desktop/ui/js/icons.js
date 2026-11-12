@@ -25,6 +25,8 @@ const PATHS = {
   copy: 'M5.5 5.5h7v7h-7zM3.5 10.5v-7h7',
   info: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 7.3v3.7M8 5.2h.01',
   folder: 'M2 4.5h4l1.2 1.5H14v6.5H2z',
+  error: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM6 6l4 4M10 6l-4 4',
+  warning: 'M8 2.2 14.2 13H1.8zM8 6.5v3M8 11.3h.01',
 };
 
 /** Fills every `svg[data-icon]` and replaces `button[data-icon]` content with its icon. */
