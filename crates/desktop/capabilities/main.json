@@ -36,6 +36,9 @@
     "allow-browse",
     "allow-elevate",
     "allow-log-perf",
+    "allow-about",
+    "allow-open-link",
+    "allow-reveal-config",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]
