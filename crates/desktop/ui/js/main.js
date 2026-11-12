@@ -30,6 +30,7 @@ function contextMenu(node, e) {
         { label: 'Open', run: () => app.open(node) },
         { label: 'Reveal', run: () => app.reveal(node) },
         { label: 'Copy path', run: () => copyText(d.path) },
+        ...(d.kind === 'folder' ? [{ label: d.pinned ? 'Unpin' : 'Pin', run: () => api.setPin(d.path, !d.pinned) }] : []),
         { sep: true },
         { tags: [1, 2, 3, 4].map((i) => ({ on: d.tag === i, run: (n) => app.tag(n, node) })) },
         { sep: true },

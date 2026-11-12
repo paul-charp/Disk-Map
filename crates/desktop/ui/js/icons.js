@@ -24,6 +24,7 @@ const PATHS = {
   filter: 'M2.5 3.5h11L9.5 8.5V13l-3-1.5V8.5z',
   copy: 'M5.5 5.5h7v7h-7zM3.5 10.5v-7h7',
   folder: 'M2 4.5h4l1.2 1.5H14v6.5H2z',
+  pin: 'M5.5 2.5h5M6.5 2.5v4L4 9.5h8L9.5 6.5v-4M8 9.5v4',
 };
 
 /** Fills every `svg[data-icon]` and replaces `button[data-icon]` content with its icon. */

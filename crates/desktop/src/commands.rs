@@ -317,6 +317,7 @@ pub struct Details {
     items: Option<u32>,
     class: String,
     tag: u8,
+    pinned: bool,
 }
 
 fn special_details(s: &Session, id: i32) -> Details {
@@ -361,10 +362,12 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
     } else {
         String::new()
     };
+    let path = tree.full_path(id);
     Ok(Details {
         id: node,
         name: tree.name(id).to_string(),
-        path: tree.full_path(id),
+        pinned: !is_file && g.cfg.is_pinned(&path),
+        path,
         kind: if is_file { "file" } else { "folder" },
         size: fmt::size(logical),
         disk: fmt::size(size),
@@ -493,18 +496,32 @@ pub struct DriveRow {
     share: f32,
 }
 
-/// A recent scan for the start screen.
+/// A recent scan or a pinned folder for the start screen.
 #[derive(Serialize)]
 pub struct RecentRow {
     path: String,
     size: String,
+    pinned: bool,
 }
 
 /// Start screen content.
 #[derive(Serialize)]
 pub struct StartInfo {
     drives: Vec<DriveRow>,
+    pins: Vec<RecentRow>,
     recent: Vec<RecentRow>,
+}
+
+fn path_row(cfg: &Config, path: &str, size: u64, pinned: bool) -> RecentRow {
+    RecentRow {
+        path: path.to_string(),
+        size: if size > 0 {
+            fmt::size(size)
+        } else {
+            String::new()
+        },
+        pinned: pinned || cfg.is_pinned(path),
+    }
 }
 
 fn kind_name(kind: DriveKind) -> &'static str {
@@ -516,7 +533,7 @@ fn kind_name(kind: DriveKind) -> &'static str {
     }
 }
 
-/// Drives and recent scans.
+/// Drives, pinned folders and recent scans.
 #[tauri::command]
 pub async fn start_info(state: State<'_, AppState>) -> Res<StartInfo> {
     let drives = list_drives()
@@ -532,21 +549,33 @@ pub async fn start_info(state: State<'_, AppState>) -> Res<StartInfo> {
             }
         })
         .collect();
-    let recent = state
-        .lock()
-        .cfg
+    let g = state.lock();
+    let cfg = &g.cfg;
+    let pins = cfg
+        .pins
+        .iter()
+        .map(|p| path_row(cfg, p, cfg.known_size(p), true))
+        .collect();
+    let recent = cfg
         .recent
         .iter()
-        .map(|r| RecentRow {
-            path: r.path.clone(),
-            size: if r.size > 0 {
-                fmt::size(r.size)
-            } else {
-                String::new()
-            },
-        })
+        .map(|r| path_row(cfg, &r.path, r.size, false))
         .collect();
-    Ok(StartInfo { drives, recent })
+    Ok(StartInfo {
+        drives,
+        pins,
+        recent,
+    })
+}
+
+/// Pins or unpins a folder; returns whether it is pinned now.
+#[tauri::command]
+pub async fn set_pin(state: State<'_, AppState>, path: String, on: bool) -> Res<bool> {
+    let mut g = state.lock();
+    if g.cfg.set_pin(&path, on) {
+        g.cfg.save();
+    }
+    Ok(g.cfg.is_pinned(&path))
 }
 
 /// Relaunches elevated with the paths of the open tabs and quits when that worked; false when it was cancelled.

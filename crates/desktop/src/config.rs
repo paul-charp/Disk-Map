@@ -44,6 +44,8 @@ pub struct ClassDef {
 pub struct Config {
     pub theme: String,
     pub recent: Vec<Recent>,
+    /// Pinned folders, normalised, without duplicates.
+    pub pins: Vec<String>,
     /// Defaults for new tabs.
     pub detail: u32,
     pub class_colors: bool,
@@ -71,6 +73,7 @@ impl Default for Config {
         Config {
             theme: "graphite".into(),
             recent: Vec::new(),
+            pins: Vec::new(),
             detail: 3,
             class_colors: false,
             show_free: true,
@@ -149,6 +152,9 @@ impl Config {
         if !BACKENDS.contains(&self.backend.as_str()) {
             self.backend = "auto".into();
         }
+        for p in std::mem::take(&mut self.pins) {
+            self.set_pin(&p, true);
+        }
         for c in &mut self.classes {
             c.name = c.name.trim().to_string();
             if c.name.is_empty() {
@@ -157,9 +163,10 @@ impl Config {
         }
     }
 
-    /// Replaces every setting but the recent list with those of `new`.
+    /// Replaces every setting but the recent list and the pins with those of `new`.
     pub fn replace(&mut self, mut new: Config) {
         new.recent = std::mem::take(&mut self.recent);
+        new.pins = std::mem::take(&mut self.pins);
         new.sanitize();
         *self = new;
     }
@@ -225,6 +232,55 @@ impl Config {
             r.size = size;
         }
     }
+
+    /// Whether `path` is pinned.
+    pub fn is_pinned(&self, path: &str) -> bool {
+        let path = normalize(path);
+        self.pins.iter().any(|p| same_path(p, &path))
+    }
+
+    /// Pins or unpins `path`; returns whether the list changed.
+    pub fn set_pin(&mut self, path: &str, on: bool) -> bool {
+        let path = normalize(path);
+        let before = self.pins.len();
+        if !on {
+            self.pins.retain(|p| !same_path(p, &path));
+        } else if !path.is_empty() && !self.is_pinned(&path) {
+            self.pins.push(path);
+        }
+        self.pins.len() != before
+    }
+
+    /// Size of the last scan of `path`, 0 when unknown.
+    pub fn known_size(&self, path: &str) -> u64 {
+        let path = normalize(path);
+        self.recent
+            .iter()
+            .find(|r| same_path(&normalize(&r.path), &path))
+            .map_or(0, |r| r.size)
+    }
+}
+
+/// Trims spaces and trailing separators, keeping roots such as `C:\` and `/`.
+pub fn normalize(path: &str) -> String {
+    let path = path.trim();
+    let trimmed = path.trim_end_matches(['\\', '/']);
+    if trimmed.is_empty() {
+        return path.chars().take(1).collect();
+    }
+    if trimmed.ends_with(':') && trimmed.len() < path.len() {
+        return format!("{trimmed}\\");
+    }
+    trimmed.to_string()
+}
+
+/// Path equality, case-insensitive on Windows.
+pub fn same_path(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        a.to_lowercase() == b.to_lowercase()
+    } else {
+        a == b
+    }
 }
 
 #[cfg(test)]
@@ -245,6 +301,36 @@ mod tests {
         assert_eq!(cfg.recent.len(), 1);
         assert_eq!((cfg.ui_scale, cfg.min_tile), (200, 2));
         assert_eq!(cfg.map_text, "medium");
+    }
+
+    #[test]
+    fn pins_are_normalised_and_unique() {
+        let mut cfg = Config::default();
+        assert!(cfg.set_pin("C:\\data\\ ", true));
+        assert!(!cfg.set_pin("C:\\data", true));
+        assert!(cfg.set_pin("D:\\", true));
+        assert_eq!(cfg.pins, ["C:\\data", "D:\\"]);
+        assert!(cfg.is_pinned("C:\\data\\"));
+        assert!(cfg.set_pin("C:\\data", false));
+        assert!(!cfg.set_pin("C:\\data", false));
+        assert_eq!(cfg.pins, ["D:\\"]);
+        assert_eq!(normalize("D:"), "D:");
+        assert_eq!(normalize("/"), "/");
+    }
+
+    #[test]
+    fn sanitize_dedups_pins_and_replace_keeps_them() {
+        let mut cfg = Config {
+            pins: vec!["C:\\a\\".into(), "C:\\a".into(), " ".into()],
+            ..Config::default()
+        };
+        cfg.sanitize();
+        assert_eq!(cfg.pins, ["C:\\a"]);
+        cfg.push_recent("C:\\a");
+        cfg.set_recent_size("C:\\a", 42);
+        assert_eq!(cfg.known_size("C:\\a\\"), 42);
+        cfg.replace(Config::default());
+        assert_eq!(cfg.pins, ["C:\\a"]);
     }
 
     #[test]

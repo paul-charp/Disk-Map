@@ -156,6 +156,8 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
 .item .s { width: 140px; text-align: right; color: var(--muted); font-family: var(--mono); flex: none; }
 .item.recent .t { font-family: var(--mono); }
 .item.recent .s { width: 80px; }
+.item .pin { width: 22px; height: 22px; margin-right: -4px; visibility: hidden; }
+.item:hover .pin, .item .pin.on, .item .pin:focus-visible { visibility: visible; }
 
 #tip { position: fixed; z-index: 20; max-width: 420px; padding: 6px 8px; background: var(--surface);
   border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, .35); pointer-events: none; }

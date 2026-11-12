@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Pinned folders: Pinned section on the start screen, pin buttons on recent rows, Pin and Unpin in the map context menu.
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.

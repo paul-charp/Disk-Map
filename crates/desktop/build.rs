@@ -26,6 +26,7 @@ const COMMANDS: &[&str] = &[
     "open_node",
     "reveal_node",
     "start_info",
+    "set_pin",
     "browse",
     "elevate",
     "log_perf",
