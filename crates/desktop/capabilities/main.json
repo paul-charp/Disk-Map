@@ -34,6 +34,7 @@
     "allow-reveal-node",
     "allow-start-info",
     "allow-browse",
+    "allow-export",
     "allow-elevate",
     "allow-log-perf",
     "core:event:allow-listen",

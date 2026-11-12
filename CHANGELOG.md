@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Export of the view, the selection, top files and top folders as CSV or JSON (toolbar Export menu, context menu), honouring the filter and the detail level.
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.

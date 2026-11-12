@@ -33,6 +33,7 @@ function contextMenu(node, e) {
         { sep: true },
         { tags: [1, 2, 3, 4].map((i) => ({ on: d.tag === i, run: (n) => app.tag(n, node) })) },
         { sep: true },
+        { label: 'Export CSV', run: () => app.exportTo('selection', 'csv', node) },
       );
     }
     items.push({ label: 'Zoom', run: () => app.zoom(node) });

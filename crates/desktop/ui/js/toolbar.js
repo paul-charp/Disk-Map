@@ -1,6 +1,7 @@
 // Toolbar row: navigation, breadcrumb and view toggles.
 import { $, el } from './dom.js';
 import { setIcon } from './icons.js';
+import { openMenu } from './menu.js';
 
 const TOGGLES = { 'b-classes': 'class_colors', 'b-free': 'show_free', 'b-unknown': 'show_unknown' };
 const KIND = { 'b-classes': 'classes', 'b-free': 'free', 'b-unknown': 'unknown' };
@@ -17,9 +18,26 @@ export function initToolbar(app) {
   $('b-more').onclick = () => app.changeDetail(1);
   $('b-side').onclick = () => app.toggle('side');
   $('b-settings').onclick = () => app.parts.settings.open();
+  $('b-export').onclick = (e) => exportMenu(app, e.currentTarget);
   for (const id of Object.keys(TOGGLES)) $(id).onclick = () => app.toggle(KIND[id]);
   $('b-watch').onclick = () => app.toggle('watch');
   return (st) => update(app, st);
+}
+
+function exportMenu(app, button) {
+  const items = [];
+  const add = (label, scope) =>
+    items.push(
+      { label: `${label} CSV`, run: () => app.exportTo(scope, 'csv') },
+      { label: `${label} JSON`, run: () => app.exportTo(scope, 'json') },
+    );
+  add('View', 'view');
+  if (app.status.selection != null) add('Selection', 'selection');
+  items.push({ sep: true });
+  add('Top files', 'files');
+  add('Top folders', 'folders');
+  const r = button.getBoundingClientRect();
+  openMenu(items, r.left, r.bottom + 2);
 }
 
 function update(app, st) {

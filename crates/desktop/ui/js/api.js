@@ -31,6 +31,8 @@ export const api = {
   reveal: (tab, node) => invoke('reveal_node', { tab, node }),
   startInfo: () => invoke('start_info'),
   browse: () => invoke('browse'),
+  exportTo: (tab, scope, format, depth = null, node = null, path = null) =>
+    invoke('export', { tab, scope, format, depth, node, path }),
   elevate: (tab) => invoke('elevate', { tab }),
   perf: (line) => invoke('log_perf', { line }),
 };

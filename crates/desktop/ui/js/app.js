@@ -74,6 +74,16 @@ app.clearTags = () => app.act(api.clearTags(app.tab.id));
 app.reveal = (node) => api.reveal(app.tab.id, node);
 app.open = (node) => api.open(app.tab.id, node);
 
+/** Exports a scope (`view`, `selection`, `files`, `folders`) down to the detail level; reports in the status bar. */
+app.exportTo = async (scope, format, node = null) => {
+  try {
+    const path = await api.exportTo(app.tab.id, scope, format, app.status.detail, node);
+    if (path) app.parts.statusbar.setPath(`Exported ${path}`);
+  } catch (err) {
+    app.parts.statusbar.setPath(`Export failed: ${err}`);
+  }
+};
+
 app.applyFilter = async (text) => {
   const tab = app.tab;
   tab.filterText = text;
