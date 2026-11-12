@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Portable and installed storage: a `portable` marker (shipped in the zip) or an existing `diskmap.toml` keeps everything next to the exe; otherwise settings go to `%APPDATA%\diskmap` and data to `%LOCALAPPDATA%\diskmap`.
 - Core snapshot format, timeline points and tree diff with top movers (`docs/snapshots.md`).
 
 ## 0.1.0
