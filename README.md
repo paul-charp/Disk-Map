@@ -26,7 +26,7 @@ Requires Windows 10 or 11, the WebView2 runtime (included in Windows 11) and Rus
 cargo build --release -p diskmap
 ```
 
-The executable is `target\release\diskmap.exe`. Release archives contain `diskmap.exe` and `diskmap-bench.exe`.
+The executable is `target\release\diskmap.exe`. Release archives contain `diskmap.exe` only; `diskmap-bench` is a development tool built from source.
 
 ## Usage
 
