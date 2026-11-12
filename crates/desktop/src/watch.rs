@@ -14,7 +14,8 @@ const MAX_BATCH: usize = 8192;
 /// Events applied per lock hold, so the layout can get in between.
 const CHUNK: usize = 512;
 const CHUNK_GAP: Duration = Duration::from_millis(1);
-const DEFAULT_CLUSTER: u64 = 4096;
+/// Cluster size assumed when the volume did not report one.
+pub const DEFAULT_CLUSTER: u64 = 4096;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 

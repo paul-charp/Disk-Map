@@ -74,6 +74,12 @@ app.clearTags = () => app.act(api.clearTags(app.tab.id));
 app.reveal = (node) => api.reveal(app.tab.id, node);
 app.open = (node) => api.open(app.tab.id, node);
 
+/** Runs a shell action and shows its error in the status bar. */
+const shellAct = (promise) => promise.catch((e) => app.parts.statusbar.flash(String(e)));
+app.terminal = (node) => shellAct(api.terminal(app.tab.id, node));
+app.properties = (node) => shellAct(api.properties(app.tab.id, node));
+app.recycle = (node) => shellAct(app.act(api.recycle(app.tab.id, node)));
+
 app.applyFilter = async (text) => {
   const tab = app.tab;
   tab.filterText = text;

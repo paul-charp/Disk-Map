@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Context menu: Open in terminal, Properties, Scan in new tab and Recycle (with confirm).
+
 ## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.
