@@ -72,7 +72,7 @@ Test switches (`crates/desktop/src/args.rs`), applied after the scan of the last
 - `--scale <percent>`: UI scale for this run; applied at startup.
 - `--log`: show the Output panel; applied at startup.
 
-`DISKMAP_CONFIG` sets the config file path. `DISKMAP_PERF` names a file that gets one layout timing line per layout.
+`DISKMAP_CONFIG` sets the config file path. Without it, a build with no `portable` file next to the exe uses `%APPDATA%\diskmap\diskmap.toml` (see `docs/architecture.md`, Storage paths). `DISKMAP_PERF` names a file that gets one layout timing line per layout.
 
 ## MFT and elevation
 

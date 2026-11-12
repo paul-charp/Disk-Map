@@ -1,6 +1,6 @@
-//! Settings persisted in `diskmap.toml` next to the executable (or at `DISKMAP_CONFIG`).
+//! Settings persisted in `diskmap.toml` at the location chosen by `paths`.
 
-use crate::log;
+use crate::{log, paths};
 use diskmap_core::classes::{FileClass, FileClasses};
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
@@ -114,16 +114,9 @@ fn parse_hex(s: &str) -> [u8; 3] {
     [(v >> 16) as u8, (v >> 8) as u8, v as u8]
 }
 
-fn config_path() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("DISKMAP_CONFIG") {
-        return Some(PathBuf::from(p));
-    }
-    Some(std::env::current_exe().ok()?.parent()?.join("diskmap.toml"))
-}
-
-/// Path of the log file, next to the configuration file.
+/// Path of the log file, in the data folder.
 pub fn log_path() -> Option<PathBuf> {
-    Some(config_path()?.with_file_name("diskmap.log"))
+    Some(paths::ensure_data_dir().ok()?.join("diskmap.log"))
 }
 
 fn read(path: &Path) -> Option<Config> {
@@ -143,14 +136,21 @@ fn read(path: &Path) -> Option<Config> {
 impl Config {
     /// Loads the file, falling back to defaults.
     pub fn load() -> Self {
-        let mut cfg = config_path().and_then(|p| read(&p)).unwrap_or_default();
+        let mut cfg = paths::config_path()
+            .and_then(|p| read(&p))
+            .unwrap_or_default();
         cfg.sanitize();
         cfg
     }
 
     /// Writes the file; failures are logged.
     pub fn save(&self) {
-        let Some(path) = config_path() else { return };
+        let Some(path) = paths::config_path() else {
+            return;
+        };
+        if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+            let _ = std::fs::create_dir_all(dir);
+        }
         let result = toml::to_string_pretty(self)
             .map_err(|e| e.to_string())
             .and_then(|text| std::fs::write(&path, text).map_err(|e| e.to_string()));

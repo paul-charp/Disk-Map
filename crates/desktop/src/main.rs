@@ -11,6 +11,7 @@ mod fmt;
 mod log;
 mod marks;
 mod paint;
+mod paths;
 mod scan;
 mod session;
 mod shell;
