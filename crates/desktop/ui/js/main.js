@@ -7,7 +7,8 @@ import { applyScanFlags } from './flags.js';
 import { mountIcons } from './icons.js';
 import { initKeys } from './keys.js';
 import { MapView } from './map.js';
-import { bindMenuDismiss, closeMenu, openMenu } from './menu.js';
+import { bindMenuDismiss, closeMenu, confirmMenu, openMenu } from './menu.js';
+import { initOutput } from './output.js';
 import { initSettings } from './settings.js';
 import { initSide } from './side.js';
 import { initStart } from './start.js';
@@ -19,22 +20,37 @@ import { initTooltip } from './tooltip.js';
 
 const HOVER_PATH_MS = 60;
 
+/** Items acting on a real file or folder. */
+function nodeItems(node, d, e) {
+  const folder = d.kind === 'folder';
+  return [
+    { label: 'Open', run: () => app.open(node) },
+    { label: 'Open in terminal', run: () => app.terminal(node) },
+    { label: 'Reveal', run: () => app.reveal(node) },
+    { label: 'Copy path', run: () => copyText(d.path) },
+    { label: 'Properties', run: () => app.properties(node) },
+    { sep: true },
+    ...(folder
+      ? [
+          { label: 'Scan in new tab', run: () => app.newTab(d.path) },
+          { label: d.pinned ? 'Unpin' : 'Pin', run: () => api.setPin(d.path, !d.pinned) },
+        ]
+      : []),
+    { label: 'Recycle', run: () => confirmMenu(d.name, 'Recycle', () => app.recycle(node), e.clientX, e.clientY) },
+    { sep: true },
+    { tags: [1, 2, 3, 4].map((i) => ({ on: d.tag === i, run: (n) => app.tag(n, node) })) },
+    { sep: true },
+    { label: 'Export CSV', run: () => app.exportTo('selection', 'csv', node) },
+    { sep: true },
+  ];
+}
+
 function contextMenu(node, e) {
   closeMenu();
   if (node === null) return;
   app.details(node).then((d) => {
     const real = d.kind === 'file' || d.kind === 'folder';
-    const items = [];
-    if (real) {
-      items.push(
-        { label: 'Open', run: () => app.open(node) },
-        { label: 'Reveal', run: () => app.reveal(node) },
-        { label: 'Copy path', run: () => copyText(d.path) },
-        { sep: true },
-        { tags: [1, 2, 3, 4].map((i) => ({ on: d.tag === i, run: (n) => app.tag(n, node) })) },
-        { sep: true },
-      );
-    }
+    const items = real ? nodeItems(node, d, e) : [];
     items.push({ label: 'Zoom', run: () => app.zoom(node) });
     openMenu(items, e.clientX, e.clientY);
   });
@@ -94,6 +110,7 @@ async function main() {
     side: initSide(app),
     start: initStart(app),
     settings: initSettings(app),
+    output: await initOutput(),
   };
   app.map = new MapView($('map'), {
     classes: app.classes,
@@ -113,6 +130,7 @@ async function main() {
   await openStartTabs(boot);
   await showWhenPainted();
   loadDrives();
+  if (boot.flags.log) app.parts.output.show();
   if (boot.flags.settings) app.parts.settings.open(boot.flags.settings);
 }
 
@@ -135,6 +153,9 @@ async function openStartTabs(boot) {
   for (const [i, p] of boot.tabs.entries()) await app.newTab(p, i === last);
 }
 
-addEventListener('error', (e) => api.perf(`error ${e.message} ${e.filename}:${e.lineno}`));
-addEventListener('unhandledrejection', (e) => api.perf(`rejected ${e.reason}`));
+/** Sends an uncaught script error to the log. */
+const report = (message) => api.logJs('error', message).catch(() => {});
+addEventListener('error', (e) => report(`${e.error?.stack ?? e.message} (${e.filename}:${e.lineno})`));
+// Command errors reject with their text and are already logged by the backend.
+addEventListener('unhandledrejection', (e) => typeof e.reason !== 'string' && report(`Unhandled: ${e.reason?.stack ?? e.reason}`));
 main();

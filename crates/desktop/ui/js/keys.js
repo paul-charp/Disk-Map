@@ -20,6 +20,7 @@ export const SHORTCUTS = [
   ['Ctrl+U', 'Unknown space'],
   ['Ctrl+L', 'Watch'],
   ['Ctrl+B', 'Side panel'],
+  ['Ctrl+`', 'Output'],
   ['Ctrl+1 to 4', 'Tag'],
   ['Ctrl+0', 'Clear tags'],
 ];
@@ -54,6 +55,7 @@ function tabKey(app, e) {
 function ctrlKey(app, e) {
   const tabRun = tabKey(app, e);
   if (tabRun) return handled(e, tabRun);
+  if (e.code === 'Backquote' || e.key === '`') return handled(e, () => app.parts.output.toggle());
   if (app.tab.mode !== 'map') return;
   const k = e.key;
   if (PLUS.has(k)) return handled(e, () => app.changeDetail(1));

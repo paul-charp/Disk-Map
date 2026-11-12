@@ -14,6 +14,8 @@ pub struct Flags {
     pub side: bool,
     /// Settings section to open at startup.
     pub settings: Option<String>,
+    /// Show the Output panel at startup.
+    pub log: bool,
 }
 
 /// Parsed command line.
@@ -50,6 +52,7 @@ impl Args {
                         .map(str::to_string),
                 ),
                 "--side" => out.flags.side = true,
+                "--log" => out.flags.log = true,
                 a if a.starts_with("--") => {}
                 _ => out.tabs.push(arg),
             }
@@ -88,12 +91,12 @@ mod tests {
     #[test]
     fn paths_and_switches() {
         let a = parse(&[
-            r"C:\a", "--select", r"x\y", "--tabs", r"D:\;", "--side", "--scale", "150", "--colour",
-            "age",
+            r"C:\a", "--select", r"x\y", "--tabs", r"D:\;", "--side", "--log", "--scale", "150",
+            "--colour", "age",
         ]);
         assert_eq!(a.tabs, [r"C:\a", r"D:\", ""]);
         assert_eq!(a.flags.select.as_deref(), Some(r"x\y"));
-        assert!(a.flags.side);
+        assert!(a.flags.side && a.flags.log);
         let mut cfg = Config::default();
         a.apply(&mut cfg);
         assert_eq!(cfg.ui_scale, 150);

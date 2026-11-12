@@ -26,10 +26,28 @@ export function initToolbar(app) {
   $('b-more').onclick = () => app.changeDetail(1);
   $('b-side').onclick = () => app.toggle('side');
   $('b-settings').onclick = () => app.parts.settings.open();
+  $('b-about').onclick = () => app.parts.settings.open('About');
+  $('b-export').onclick = (e) => exportMenu(app, e.currentTarget);
   for (const id of Object.keys(TOGGLES)) $(id).onclick = () => app.toggle(KIND[id]);
   $('b-colors').onclick = () => colorsMenu(app);
   $('b-watch').onclick = () => app.toggle('watch');
   return (st) => update(app, st);
+}
+
+function exportMenu(app, button) {
+  const items = [];
+  const add = (label, scope) =>
+    items.push(
+      { label: `${label} CSV`, run: () => app.exportTo(scope, 'csv') },
+      { label: `${label} JSON`, run: () => app.exportTo(scope, 'json') },
+    );
+  add('View', 'view');
+  if (app.status.selection != null) add('Selection', 'selection');
+  items.push({ sep: true });
+  add('Top files', 'files');
+  add('Top folders', 'folders');
+  const r = button.getBoundingClientRect();
+  openMenu(items, r.left, r.bottom + 2);
 }
 
 function update(app, st) {

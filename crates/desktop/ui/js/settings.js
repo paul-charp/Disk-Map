@@ -1,8 +1,9 @@
 // Settings dialog: a modal window with a list of sections; every change applies at once.
+import { api } from './api.js';
 import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { classesSection } from './classtable.js';
-import { row, segmented, stepper, swatches, toggle } from './controls.js';
+import { button, iconButton, row, segmented, stepper, swatches, toggle } from './controls.js';
 import { setIcon } from './icons.js';
 import { SHORTCUTS } from './keys.js';
 import { THEMES } from './themes.js';
@@ -42,6 +43,7 @@ export function initSettings(app) {
     ],
     Classes: () => [classesSection(app)],
     Keys: () => [keyList()],
+    About: () => aboutSection(),
   };
 
   const keyList = () => {
@@ -102,6 +104,36 @@ export function initSettings(app) {
   root.addEventListener('mousedown', (e) => e.target === root && api.close());
   root.addEventListener('keydown', (e) => onKey(e, api, nav, win));
   return api;
+}
+
+let aboutInfo = null;
+
+/** Name, version, license, links, config path and build of the app. */
+function aboutSection() {
+  const logo = document.querySelector('#start .logo')?.cloneNode(true);
+  const name = el('span', 'aname', 'diskmap');
+  const version = el('span', 'mono muted');
+  const head = el('div', 'ahead');
+  head.append(...(logo ? [logo] : []), name, version);
+  const license = el('span');
+  const links = el('span', 'alinks');
+  links.append(button('GitHub', () => api.openLink('repo')), button('Issues', () => api.openLink('issues')));
+  const path = el('span', 'apath mono');
+  const config = el('span', 'acfg');
+  config.append(path, iconButton('folder', 'Reveal', () => api.revealConfig()));
+  const build = el('span', 'mono muted');
+  aboutInfo ??= api.about();
+  aboutInfo.then((a) => {
+    name.textContent = a.name;
+    version.textContent = a.version;
+    license.textContent = `${a.license} License`;
+    path.textContent = a.config || '—';
+    path.title = a.config;
+    build.textContent = `${a.target} · ${a.profile}`;
+  }).catch(() => {
+    aboutInfo = null;
+  });
+  return [head, row('License', license), row('Links', links), row('Config', config), row('Build', build)];
 }
 
 function onKey(e, api, nav, win) {
