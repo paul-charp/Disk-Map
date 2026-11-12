@@ -29,9 +29,16 @@ const COMMANDS: &[&str] = &[
     "properties_node",
     "recycle_node",
     "start_info",
+    "set_pin",
     "browse",
     "elevate",
     "log_perf",
+    "log_entries",
+    "log_clear",
+    "log_js",
+    "about",
+    "open_link",
+    "reveal_config",
 ];
 
 fn main() {

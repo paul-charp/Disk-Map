@@ -33,10 +33,18 @@ export const api = {
   properties: (tab, node) => invoke('properties_node', { tab, node }),
   recycle: (tab, node) => invoke('recycle_node', { tab, node }),
   startInfo: () => invoke('start_info'),
+  setPin: (path, on) => invoke('set_pin', { path, on }),
   browse: () => invoke('browse'),
   elevate: (tab) => invoke('elevate', { tab }),
   perf: (line) => invoke('log_perf', { line }),
+  logEntries: () => invoke('log_entries'),
+  logClear: () => invoke('log_clear'),
+  logJs: (level, message) => invoke('log_js', { level, message }),
+  about: () => invoke('about'),
+  openLink: (link) => invoke('open_link', { link }),
+  revealConfig: () => invoke('reveal_config'),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));
 export const onDrop = (fn) => listen('dropped', (e) => fn(e.payload));
+export const onLog = (fn) => listen('log', (e) => fn(e.payload));
