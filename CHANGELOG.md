@@ -1,12 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
 
 - Repository renamed to Disk-Map; branch model in `docs/branching.md`.
 - Local working files move to `.local/`.
-
-## 0.1.0
-
 - Workspace crates: `diskmap-core`, `diskmap-scan`, `diskmap-bench`, `diskmap` (Tauri 2 desktop app).
 - Treemap view with squarified layout, nested folders, detail levels 1 to 12, free and unknown space of the volume.
 - Click to select and dig in place, double click to zoom, Back, Forward, Up and Root, breadcrumb.
