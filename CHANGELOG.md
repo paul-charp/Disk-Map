@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Repository renamed to Disk-Map; branch model in `docs/branching.md`.
+
 ## 0.1.0
 
 - Workspace crates: `diskmap-core`, `diskmap-scan`, `diskmap-bench`, `diskmap` (Tauri 2 desktop app).
