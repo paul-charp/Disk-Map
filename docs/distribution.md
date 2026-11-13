@@ -6,7 +6,7 @@ Release assets, the updater and its signing key, winget. The Release workflow (`
 
 | Asset | Made when |
 | --- | --- |
-| `diskmap-<tag>-windows-x64.zip` | always |
+| `diskmap-<tag>-windows-x64-portable.exe` | always |
 | `diskmap-<tag>-windows-x64-setup.exe` | always |
 | `diskmap-<tag>-windows-x64-setup.exe.sig` | signing key set |
 | `latest.json` | signing key set |
@@ -17,7 +17,7 @@ A tag with a `-` (e.g. `v0.3.0-rc.1`) is published as a pre-release. GitHub's `r
 
 `tauri-plugin-updater` reads `https://github.com/paul-charp/Disk-Map/releases/latest/download/latest.json`, set in `crates/desktop/tauri.conf.json` under `plugins.updater`. The installer it downloads must carry a signature made with the private key that matches `plugins.updater.pubkey`; `requireSignedVersion` also binds the signature to the version, which blocks downgrades.
 
-- `pubkey` empty: updates are off. The app builds and runs; About shows `Off`. The workflow publishes the zip and the setup without updater files and prints a warning.
+- `pubkey` empty: updates are off. The app builds and runs; About shows `Off`. The workflow publishes the portable exe and the setup without updater files and prints a warning.
 - Installed build: checks at startup when `check_updates` is on (Settings, About, Auto check) and from Check now. A newer version shows an `Update x.y.z` chip in the status bar and Install in About, which downloads, verifies, runs the installer in passive mode and restarts.
 - Portable build: same check; About shows Release, which opens the latest release page.
 - Failures go to the log (Output panel), never to a dialog.

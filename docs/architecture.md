@@ -123,7 +123,7 @@ The environment variable `DISKMAP_PERF` names a file that receives one timing li
 
 | Mode | When | Config | Data (snapshots, timeline, logs) |
 | --- | --- | --- | --- |
-| Portable | a `portable` file or a `diskmap.toml` next to the exe | `<exe dir>\diskmap.toml` | `<exe dir>\data\` |
-| Installed | otherwise | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
+| Installed | the exe folder is `HKCU\Software\diskmap\InstallDir` | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
+| Portable | otherwise | `<exe dir>\diskmap.toml` | `<exe dir>\data\` |
 
-The release zip ships the `portable` marker. The installer puts the exe in `%LOCALAPPDATA%\diskmap\`, so installed data sits in its `data\` subfolder, like portable. An existing `diskmap.toml` next to the exe keeps 0.1.0 setups portable. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.
+The installer writes `InstallDir` on every install and update (`windows/hooks.nsh`); the uninstaller deletes it. Folders are compared after canonicalization, ignoring case. The portable exe, a dev build, a 0.1.0 unzip or a copy of the installed exe elsewhere is portable. The installer puts the exe in `%LOCALAPPDATA%\diskmap\` by default, so installed data sits in its `data\` subfolder. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.

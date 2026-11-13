@@ -25,14 +25,9 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
       - name: Build
         run: cargo build --release -p diskmap
-      - name: Package
+      - name: Portable
         shell: pwsh
-        run: |
-          $name = "diskmap-${{ github.ref_name }}-windows-x64"
-          New-Item -ItemType Directory $name | Out-Null
-          Copy-Item target\release\diskmap.exe, LICENSE, README.md $name
-          New-Item -ItemType File "$name\portable" | Out-Null
-          Compress-Archive -Path $name\* -DestinationPath "$name.zip"
+        run: Copy-Item target\release\diskmap.exe "diskmap-${{ github.ref_name }}-windows-x64-portable.exe"
       - name: Updater key
         id: key
         shell: pwsh
@@ -95,7 +90,7 @@ jobs:
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
-            diskmap-${{ github.ref_name }}-windows-x64.zip
+            diskmap-${{ github.ref_name }}-windows-x64-portable.exe
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig
             latest.json
