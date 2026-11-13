@@ -1,11 +1,16 @@
 pub mod age;
 pub mod classes;
 mod codec;
+pub mod compare;
 pub mod diff;
 pub mod export;
 pub mod filter;
+pub mod key;
 pub mod layout;
 pub mod log;
+pub mod report;
+pub mod retention;
+pub mod schedule;
 pub mod snapshot;
 pub mod summary;
 pub mod tags;

@@ -43,6 +43,14 @@ const COMMANDS: &[&str] = &[
     "reveal_config",
     "update_check",
     "update_install",
+    "schedule_get",
+    "schedule_set",
+    "timeline",
+    "reports",
+    "snapshots",
+    "save_snapshot",
+    "delete_snapshot",
+    "compare",
 ];
 
 fn main() {

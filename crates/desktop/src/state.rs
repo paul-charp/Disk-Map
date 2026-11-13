@@ -5,9 +5,12 @@ use crate::fmt;
 use crate::log::{self, Log};
 use crate::scan::Scan;
 use crate::session::{Restore, Session, ViewOpts};
+use crate::snapstore;
+use crate::timeline;
 use crate::watch;
 use crossbeam_channel::{Receiver, RecvTimeoutError};
 use diskmap_core::classes::FileClasses;
+use diskmap_core::snapshot::SnapshotMeta;
 use diskmap_core::tree::NodeId;
 use diskmap_scan::ScanEvent;
 use serde::Serialize;
@@ -128,6 +131,23 @@ pub struct Status {
     pub can_elevate: bool,
     /// The watcher lost changes, so a rescan is due.
     pub stale: bool,
+    /// The snapshot the tab is compared against.
+    pub compare: Option<CompareStatus>,
+}
+
+/// Compare mode for the chrome.
+#[derive(Serialize, Clone)]
+pub struct CompareStatus {
+    pub path: String,
+    pub date: String,
+}
+
+fn compare_status(s: &Session) -> Option<CompareStatus> {
+    let b = &s.compare.as_ref()?.base;
+    Some(CompareStatus {
+        path: b.path.to_string_lossy().into_owned(),
+        date: fmt::date_time(b.time),
+    })
 }
 
 fn volume_status(s: &Session) -> Option<VolumeStatus> {
@@ -171,7 +191,7 @@ pub fn status(inner: &Inner, tab: TabId) -> Status {
         path: s.scan.root_path.clone(),
         running: s.scan.running,
         cancelled: s.scan.cancelled,
-        ver: s.scan.version + s.filter.ver + s.tags_ver,
+        ver: s.scan.version + s.filter.ver + s.tags_ver + s.compare_ver,
         files: s.scan.tree().file_count(),
         dirs: s.scan.tree().dir_count(),
         scanned: fmt::size(s.scan.tree().get(s.scan.tree().root()).allocated),
@@ -198,6 +218,7 @@ pub fn status(inner: &Inner, tab: TabId) -> Status {
         backend_tip: s.scan.backend_tip(),
         can_elevate: s.scan.can_elevate(),
         stale: s.stale,
+        compare: compare_status(s),
     }
 }
 
@@ -288,6 +309,10 @@ pub fn start_view_rescan(app: &AppHandle, state: &AppState, tab: TabId) -> Resul
             if !sub.cancelled {
                 s.scan.replace_subtree(node, sub.tree());
                 s.selection = None;
+                let classes = g.classes.clone();
+                if let Some(s) = g.sessions.get_mut(&tab) {
+                    s.refresh_compare(true, &classes);
+                }
             }
             status(&g, tab)
         };
@@ -313,7 +338,7 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
             };
             let done = pump(s, event, rx);
             if done {
-                s.finish_restore();
+                s.finish_restore(classes);
             }
             s.refresh_filter(classes);
             if done {
@@ -324,6 +349,13 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
                 );
                 cfg.set_recent_size(&root, size);
                 cfg.save();
+                if s.scan.completed() {
+                    let point = timeline::point_of(s.scan.tree(), fmt::filetime_now());
+                    std::thread::spawn(move || timeline::record(&point));
+                }
+                if cfg.auto_snapshot && s.scan.completed() {
+                    auto_snapshot(s, cfg.keep_snapshots as usize);
+                }
             }
             let due = done || last_emit.elapsed() >= EMIT_EVERY;
             (due.then(|| status(&g, tab)), done)
@@ -339,8 +371,41 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
     }
 }
 
+/// Saves a snapshot of a finished scan in the background, then prunes the old ones.
+fn auto_snapshot(s: &Session, keep: usize) {
+    let tree = s.scan.tree().clone();
+    let meta = snapshot_meta(s);
+    std::thread::spawn(move || {
+        if let Err(e) = snapstore::save(&tree, &meta, false) {
+            log::warn(
+                "snapshot",
+                format!("Cannot save {}: {e}", tree.name(tree.root())),
+            );
+            return;
+        }
+        let gone = snapstore::prune(tree.name(tree.root()), keep);
+        if gone > 0 {
+            log::info("snapshot", format!("Pruned {gone} old snapshots"));
+        }
+    });
+}
+
+/// Metadata of a snapshot of a session: its scan start and cluster size.
+pub fn snapshot_meta(s: &Session) -> SnapshotMeta {
+    SnapshotMeta {
+        scan_time: s.started,
+        cluster_size: s
+            .scan
+            .volume
+            .as_ref()
+            .and_then(|v| u32::try_from(v.cluster_size).ok())
+            .unwrap_or(SnapshotMeta::default().cluster_size),
+        ..SnapshotMeta::default()
+    }
+}
+
 /// Logs how a scan ended.
-fn log_done(scan: &Scan) {
+pub fn log_done(scan: &Scan) {
     let secs = scan.elapsed().as_secs_f64();
     let how = if scan.cancelled { "Stopped" } else { "Scanned" };
     log::info(

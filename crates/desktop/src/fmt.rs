@@ -29,6 +29,12 @@ pub fn size(bytes: u64) -> String {
     format!("{text} {}", UNITS[unit])
 }
 
+/// Size change with its sign, e.g. `+4.2 GB` or `-512 MB`.
+pub fn signed_size(delta: i64) -> String {
+    let sign = if delta < 0 { '-' } else { '+' };
+    format!("{sign}{}", size(delta.unsigned_abs()))
+}
+
 /// Percentage with one decimal below 10, none above.
 pub fn percent(part: u64, total: u64) -> String {
     if total == 0 {
@@ -40,6 +46,16 @@ pub fn percent(part: u64, total: u64) -> String {
     } else {
         format!("{p:.0}%")
     }
+}
+
+/// Signed size change: `+1.2 GB`, `-512 MB`, `0 B`.
+pub fn delta(bytes: i64) -> String {
+    let sign = match bytes.signum() {
+        1 => "+",
+        -1 => "-",
+        _ => "",
+    };
+    format!("{sign}{}", size(bytes.unsigned_abs()))
 }
 
 /// Current time as a Windows FILETIME.
@@ -84,6 +100,10 @@ mod tests {
         assert_eq!(size(512 * 1024 * 1024), "512 MB");
         assert_eq!(size(41_011_000_000), "38.2 GB");
         assert_eq!(size(2_089_000_000_000), "1.9 TB");
+        assert_eq!(signed_size(-512 * 1024 * 1024), "-512 MB");
+        assert_eq!(signed_size(0), "+0 B");
+        assert_eq!(delta(-512 * 1024 * 1024), "-512 MB");
+        assert_eq!(delta(0), "0 B");
     }
 
     #[test]

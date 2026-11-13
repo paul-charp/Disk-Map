@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-schedule-get"
+description = "Enables the schedule_get command without any pre-configured scope."
+commands.allow = ["schedule_get"]
+
+[[permission]]
+identifier = "deny-schedule-get"
+description = "Denies the schedule_get command without any pre-configured scope."
+commands.deny = ["schedule_get"]
