@@ -32,6 +32,9 @@ const COMMANDS: &[&str] = &[
     "log_entries",
     "log_clear",
     "log_js",
+    "about",
+    "open_link",
+    "reveal_config",
 ];
 
 fn main() {

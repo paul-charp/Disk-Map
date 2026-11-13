@@ -7,6 +7,7 @@ use crate::elevate;
 use crate::fmt;
 use crate::log;
 use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
+use crate::paths;
 use crate::session::{Session, find_by_names};
 use crate::shell;
 use crate::state::{
@@ -638,5 +639,60 @@ pub async fn log_clear(state: State<'_, AppState>) -> Res<()> {
 #[tauri::command]
 pub async fn log_js(state: State<'_, AppState>, level: String, message: String) -> Res<()> {
     state.log.push(Level::parse(&level), "ui", message);
+    Ok(())
+}
+
+/// Application facts for the About section.
+#[derive(Serialize)]
+pub struct About {
+    name: &'static str,
+    version: &'static str,
+    license: &'static str,
+    config: String,
+    target: String,
+    profile: &'static str,
+}
+
+/// Version, license, configuration path and build of this binary.
+#[tauri::command]
+pub async fn about() -> Res<About> {
+    Ok(About {
+        name: env!("CARGO_PKG_NAME"),
+        version: env!("CARGO_PKG_VERSION"),
+        license: env!("CARGO_PKG_LICENSE"),
+        config: paths::config_path()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        target: format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
+        profile: if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
+    })
+}
+
+/// Opens a project page in the default browser: `repo` or `issues`.
+#[tauri::command]
+pub async fn open_link(link: String) -> Res<()> {
+    let repo = env!("CARGO_PKG_REPOSITORY");
+    let url = match link.as_str() {
+        "repo" => repo.to_string(),
+        "issues" => format!("{repo}/issues"),
+        _ => return Err(format!("Unknown link: {link}").into()),
+    };
+    shell::open(&url);
+    Ok(())
+}
+
+/// Shows the configuration file in Explorer, or its folder when the file does not exist yet.
+#[tauri::command]
+pub async fn reveal_config() -> Res<()> {
+    let path = paths::config_path().ok_or("No config path")?;
+    if path.exists() {
+        shell::reveal(&path.to_string_lossy());
+    } else if let Some(dir) = path.parent() {
+        shell::open(&dir.to_string_lossy());
+    }
     Ok(())
 }
