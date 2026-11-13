@@ -13,7 +13,9 @@ pub fn root_key(root: &str) -> String {
 }
 
 fn fnv1a(bytes: &[u8]) -> u32 {
-    bytes.iter().fold(0x811c_9dc5, |h, &b| (h ^ b as u32).wrapping_mul(0x0100_0193))
+    bytes.iter().fold(0x811c_9dc5, |h, &b| {
+        (h ^ b as u32).wrapping_mul(0x0100_0193)
+    })
 }
 
 #[cfg(test)]
