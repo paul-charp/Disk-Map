@@ -1,6 +1,7 @@
 pub mod classes;
 mod codec;
 pub mod diff;
+pub mod export;
 pub mod filter;
 pub mod layout;
 pub mod log;

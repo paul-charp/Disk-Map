@@ -15,6 +15,7 @@ use crate::state::{
 };
 use crate::watch;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
+use diskmap_core::export::{self, Format, Row, Source};
 use diskmap_core::log::Level;
 use diskmap_core::tags::Tag;
 use diskmap_core::tree::{NodeId, NodeKind};
@@ -694,6 +695,117 @@ pub async fn browse(window: WebviewWindow) -> Res<Option<String>> {
     .await
     .map_err(|e| e.to_string())?;
     Ok(picked.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Rows of an export scope: `view`, `selection` (or `node` when given), `files` or `folders`.
+fn export_rows(
+    s: &mut Session,
+    classes: &FileClasses,
+    scope: &str,
+    depth: Option<u32>,
+    node: Option<i32>,
+) -> Res<Vec<Row>> {
+    let flat = match scope {
+        "files" => Some(s.stats(classes).files.clone()),
+        "folders" => Some(s.stats(classes).folders.clone()),
+        _ => None,
+    };
+    let src = Source {
+        tree: s.scan.tree(),
+        tags: Some(&s.tags),
+        filtered: s.filter.filtered.as_ref(),
+    };
+    if let Some(list) = flat {
+        let ids: Vec<NodeId> = list.into_iter().map(|(id, _)| id).collect();
+        return Ok(src.list(&ids));
+    }
+    let root = match scope {
+        "view" => s.root,
+        "selection" => node
+            .and_then(|n| node_id(s, n))
+            .or(s.selection)
+            .ok_or("No selection")?,
+        _ => return Err(format!("Unknown scope {scope}").into()),
+    };
+    Ok(src.subtree(root, depth))
+}
+
+/// Default file name: `diskmap-<root>-<date>.<ext>`.
+fn export_name(s: &Session, format: Format) -> String {
+    let name: String = s
+        .scan
+        .tree()
+        .name(s.root)
+        .chars()
+        .map(|c| {
+            if c.is_control() || "\\/:*?\"<>|".contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let name = name.trim_matches(['_', ' ', '.']);
+    let root = if name.is_empty() { "scan" } else { name };
+    let date = export::iso_utc(fmt::filetime_now());
+    let date = date.get(..10).unwrap_or_default();
+    format!("diskmap-{root}-{date}.{}", format.ext())
+}
+
+/// Asks for a file to save to.
+async fn save_dialog(window: WebviewWindow, name: String, format: Format) -> Res<Option<String>> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        let ext = format.ext();
+        rfd::FileDialog::new()
+            .set_parent(&window)
+            .set_file_name(name)
+            .add_filter(ext.to_uppercase(), &[ext])
+            .save_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(picked.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Exports a scope of a tab (`view`, `selection`, `files`, `folders`) as `csv` or `json`, down to `depth`
+/// levels (no limit when absent), honouring the active filter. Without `path` a save dialog asks.
+/// Returns the written path, `None` when the dialog was cancelled.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn export(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    tab: TabId,
+    scope: String,
+    format: String,
+    depth: Option<u32>,
+    node: Option<i32>,
+    path: Option<String>,
+) -> Res<Option<String>> {
+    let format = Format::parse(&format).ok_or_else(|| format!("Unknown format {format}"))?;
+    let path = match path {
+        Some(p) => p,
+        None => {
+            let name = {
+                let g = state.lock();
+                export_name(g.sessions.get(&tab).ok_or(NO_SESSION)?, format)
+            };
+            match save_dialog(window, name, format).await? {
+                Some(p) => p,
+                None => return Ok(None),
+            }
+        }
+    };
+    let mut bytes = Vec::new();
+    {
+        let mut g = state.lock();
+        let classes = g.classes.clone();
+        let s = g.sessions.get_mut(&tab).ok_or(NO_SESSION)?;
+        let rows = export_rows(s, &classes, &scope, depth, node)?;
+        export::write(&mut bytes, format, &rows).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(Some(path))
 }
 
 /// Appends a timing line to the file named by `DISKMAP_PERF`, when set.

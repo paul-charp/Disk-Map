@@ -35,6 +35,8 @@ export const api = {
   startInfo: () => invoke('start_info'),
   setPin: (path, on) => invoke('set_pin', { path, on }),
   browse: () => invoke('browse'),
+  exportTo: (tab, scope, format, depth = null, node = null, path = null) =>
+    invoke('export', { tab, scope, format, depth, node, path }),
   elevate: (tab) => invoke('elevate', { tab }),
   perf: (line) => invoke('log_perf', { line }),
   logEntries: () => invoke('log_entries'),

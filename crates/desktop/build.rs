@@ -31,6 +31,7 @@ const COMMANDS: &[&str] = &[
     "start_info",
     "set_pin",
     "browse",
+    "export",
     "elevate",
     "log_perf",
     "log_entries",

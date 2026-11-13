@@ -79,6 +79,15 @@ const shellAct = (promise) => promise.catch((e) => app.parts.statusbar.flash(Str
 app.terminal = (node) => shellAct(api.terminal(app.tab.id, node));
 app.properties = (node) => shellAct(api.properties(app.tab.id, node));
 app.recycle = (node) => shellAct(app.act(api.recycle(app.tab.id, node)));
+/** Exports a scope (`view`, `selection`, `files`, `folders`) down to the detail level; reports in the status bar. */
+app.exportTo = async (scope, format, node = null) => {
+  try {
+    const path = await api.exportTo(app.tab.id, scope, format, app.status.detail, node);
+    if (path) app.parts.statusbar.setPath(`Exported ${path}`);
+  } catch (err) {
+    app.parts.statusbar.setPath(`Export failed: ${err}`);
+  }
+};
 
 app.applyFilter = async (text) => {
   const tab = app.tab;

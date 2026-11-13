@@ -38,6 +38,7 @@
     "allow-start-info",
     "allow-set-pin",
     "allow-browse",
+    "allow-export",
     "allow-elevate",
     "allow-log-perf",
     "allow-log-entries",

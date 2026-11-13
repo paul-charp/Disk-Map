@@ -92,6 +92,7 @@ fn main() {
             commands::start_info,
             commands::set_pin,
             commands::browse,
+            commands::export,
             commands::elevate,
             commands::log_perf,
             commands::log_entries,

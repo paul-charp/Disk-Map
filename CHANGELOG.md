@@ -8,6 +8,7 @@
 - About section in Settings (version, license, GitHub and Issues links, config path with Reveal, build), opened from an info button in the toolbar.
 - Pinned folders: Pinned section on the start screen, pin buttons on recent rows, Pin and Unpin in the map context menu.
 - Context menu: Open in terminal, Properties, Scan in new tab and Recycle (with confirm).
+- Export of the view, the selection, top files and top folders as CSV or JSON (toolbar Export menu, context menu), honouring the filter and the detail level.
 
 ## 0.1.0
 
