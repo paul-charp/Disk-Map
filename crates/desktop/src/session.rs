@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::fmt;
 use crate::marks::Marks;
 use crate::scan::Scan;
-use crate::watch::Live;
+use crate::watch::{DEFAULT_CLUSTER, Live};
 use diskmap_core::classes::FileClasses;
 use diskmap_core::filter::{Filter, FilterCtx, Filtered};
 use diskmap_core::layout::Sizes;
@@ -243,6 +243,28 @@ impl Session {
         self.marks.add(marked, std::time::Instant::now());
         self.fix_refs(&survivors);
         self.refresh_filter(classes);
+    }
+
+    /// Path of a node relative to the scan root, separated by `\`.
+    pub fn rel_path(&self, id: NodeId) -> String {
+        names_to(self.scan.tree(), id).join("\\")
+    }
+
+    /// Drops a path removed by the app itself, like a watcher removal; a no-op once it is gone.
+    pub fn forget_path(&mut self, rel: &str, classes: &FileClasses) {
+        if self.scan.running {
+            return;
+        }
+        let cluster = self
+            .scan
+            .volume
+            .as_ref()
+            .map_or(DEFAULT_CLUSTER, |v| v.cluster_size);
+        let event = WatchEvent {
+            path: rel.into(),
+            kind: WatchKind::Removed,
+        };
+        self.apply_live(&mut LiveUpdater::new(cluster), &[event], classes);
     }
 
     /// Moves the view root, selection and history off removed nodes onto their nearest surviving ancestor.

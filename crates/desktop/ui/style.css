@@ -127,7 +127,8 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
 #st-prog i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); }
 #st-prog.busy i { width: 35%; animation: slide 1.1s ease-in-out infinite alternate; }
 @keyframes slide { from { left: 0; } to { left: 65%; } }
-#st-err { color: var(--warn); cursor: default; }
+#st-err, #st-msg { color: var(--warn); cursor: default; }
+#st-msg { max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
 .chip { height: 16px; padding: 0 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 11px; line-height: 14px; color: var(--muted); }
 .chip:hover { background: var(--hover); color: var(--text); }
 .chip.warn { color: var(--warn); border-color: var(--warn); }
@@ -172,6 +173,8 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
 .menu .tags { display: flex; gap: 6px; padding: 6px 8px; }
 .menu .tags .dot { cursor: default; }
 .menu hr { border: 0; border-top: 1px solid var(--border); margin: 3px 0; }
+.menu button.danger { color: var(--warn); }
+.menu .title { max-width: 280px; padding: 4px 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu .sw { width: 10px; height: 10px; border-radius: 5px; border: 1px solid var(--edge); }
 
 .scrim { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, .4); }

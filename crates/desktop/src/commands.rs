@@ -11,7 +11,7 @@ use crate::paths;
 use crate::session::{Session, find_by_names};
 use crate::shell;
 use crate::state::{
-    AppState, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
+    AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
 use crate::watch;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
@@ -519,6 +519,65 @@ pub async fn open_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res
 pub async fn reveal_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<()> {
     shell::reveal(&path_of(&state, tab, node)?);
     Ok(())
+}
+
+/// Opens a terminal in a folder, or in the folder holding a file.
+#[tauri::command]
+pub async fn terminal_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<()> {
+    let dir = {
+        let g = state.lock();
+        let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+        let id = node_id(s, node).ok_or("Unknown node")?;
+        let tree = s.scan.tree();
+        let dir = match tree.get(id).kind {
+            NodeKind::File => tree.parent(id).unwrap_or(id),
+            _ => id,
+        };
+        tree.full_path(dir)
+    };
+    Ok(shell::terminal(&dir)?)
+}
+
+/// Shows the Explorer Properties dialog of a node.
+#[tauri::command]
+pub async fn properties_node(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tab: TabId,
+    node: i32,
+) -> Res<()> {
+    let path = path_of(&state, tab, node)?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(shell::properties(&path));
+    })
+    .map_err(|e| e.to_string())?;
+    Ok(rx.recv().map_err(|e| e.to_string())??)
+}
+
+/// Moves a node to the Recycle Bin and drops it from the tree.
+#[tauri::command]
+pub async fn recycle_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<Status> {
+    let (path, rel) = {
+        let g = state.lock();
+        let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+        let id = node_id(s, node).ok_or("Unknown node")?;
+        if id == s.scan.tree().root() {
+            return Err("Scan root".into());
+        }
+        (s.scan.tree().full_path(id), s.rel_path(id))
+    };
+    tauri::async_runtime::spawn_blocking(move || shell::recycle(&path))
+        .await
+        .map_err(|e| e.to_string())??;
+    let mut g = state.lock();
+    let Inner {
+        sessions, classes, ..
+    } = &mut *g;
+    if let Some(s) = sessions.get_mut(&tab) {
+        s.forget_path(&rel, classes);
+    }
+    Ok(status(&g, tab))
 }
 
 /// A mounted drive for the start screen.

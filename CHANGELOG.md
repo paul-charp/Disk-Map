@@ -7,6 +7,7 @@
 - Output panel (Ctrl+`) with the application log: command, scan, watcher, config and script errors, level filter, Copy, Clear; error and warning counts in the status bar; mirrored to `diskmap.log` next to the config file (1 MB, rotated to `.1`); test switch `--log`.
 - About section in Settings (version, license, GitHub and Issues links, config path with Reveal, build), opened from an info button in the toolbar.
 - Pinned folders: Pinned section on the start screen, pin buttons on recent rows, Pin and Unpin in the map context menu.
+- Context menu: Open in terminal, Properties, Scan in new tab and Recycle (with confirm).
 
 ## 0.1.0
 

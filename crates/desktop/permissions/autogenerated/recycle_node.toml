@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recycle-node"
+description = "Enables the recycle_node command without any pre-configured scope."
+commands.allow = ["recycle_node"]
+
+[[permission]]
+identifier = "deny-recycle-node"
+description = "Denies the recycle_node command without any pre-configured scope."
+commands.deny = ["recycle_node"]
