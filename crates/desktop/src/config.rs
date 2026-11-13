@@ -72,6 +72,9 @@ fn file_colors_compat<'de, D: serde::Deserializer<'de>>(d: D) -> Result<FileColo
 pub struct Recent {
     pub path: String,
     pub size: u64,
+    /// End of the last finished scan, Unix seconds; 0 when unknown.
+    #[serde(default)]
+    pub time: i64,
 }
 
 /// A file class as stored in the configuration and edited in the settings.
@@ -360,26 +363,28 @@ impl Config {
 
     /// Moves `path` to the top of the recent list.
     pub fn push_recent(&mut self, path: &str) {
-        let size = self
+        let (size, time) = self
             .recent
             .iter()
             .find(|r| r.path == path)
-            .map_or(0, |r| r.size);
+            .map_or((0, 0), |r| (r.size, r.time));
         self.recent.retain(|r| r.path != path);
         self.recent.insert(
             0,
             Recent {
                 path: path.into(),
                 size,
+                time,
             },
         );
         self.recent.truncate(MAX_RECENT);
     }
 
-    /// Records the size of a finished scan.
-    pub fn set_recent_size(&mut self, path: &str, size: u64) {
+    /// Records the size and end time (Unix seconds) of a finished scan.
+    pub fn set_recent_size(&mut self, path: &str, size: u64, time: i64) {
         if let Some(r) = self.recent.iter_mut().find(|r| r.path == path) {
             r.size = size;
+            r.time = time;
         }
     }
 
@@ -403,11 +408,15 @@ impl Config {
 
     /// Size of the last scan of `path`, 0 when unknown.
     pub fn known_size(&self, path: &str) -> u64 {
+        self.known(path).map_or(0, |r| r.size)
+    }
+
+    /// The recent entry of `path`, compared as normalised paths.
+    pub fn known(&self, path: &str) -> Option<&Recent> {
         let path = normalize(path);
         self.recent
             .iter()
             .find(|r| same_path(&normalize(&r.path), &path))
-            .map_or(0, |r| r.size)
     }
 }
 
@@ -477,7 +486,7 @@ mod tests {
         cfg.sanitize();
         assert_eq!(cfg.pins, ["C:\\a"]);
         cfg.push_recent("C:\\a");
-        cfg.set_recent_size("C:\\a", 42);
+        cfg.set_recent_size("C:\\a", 42, 7);
         assert_eq!(cfg.known_size("C:\\a\\"), 42);
         cfg.replace(Config::default());
         assert_eq!(cfg.pins, ["C:\\a"]);

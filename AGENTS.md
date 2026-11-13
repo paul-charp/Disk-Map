@@ -67,7 +67,7 @@ Look at screenshots before saying UI work is done.
 Test switches (`crates/desktop/src/args.rs`), applied after the scan of the last tab ends unless noted:
 
 - `<path>`: open a tab scanning that folder; repeat for more tabs.
-- `--tabs "a;b;"`: tabs separated by `;`; an empty entry is a start tab.
+- `--tabs "a;b;"`: tabs separated by `;`; an empty entry is a start tab (the dashboard; `--tabs ";"` opens one). Seed its history with a few `--snapshot <root>` runs first.
 - `--select <rel>`: select the node at a path below the scan root.
 - `--zoom <rel>`: zoom to the node at that path.
 - `--hover <rel>`: hover the node.

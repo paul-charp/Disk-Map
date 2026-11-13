@@ -7,6 +7,7 @@ mod args;
 mod commands;
 mod compare;
 mod config;
+mod dashboard;
 mod elevate;
 mod fmt;
 mod headless;
@@ -121,6 +122,7 @@ fn main() {
             commands::schedule_set,
             commands::timeline,
             commands::reports,
+            dashboard::dashboard,
             snapcmds::snapshots,
             snapcmds::save_snapshot,
             snapcmds::delete_snapshot,

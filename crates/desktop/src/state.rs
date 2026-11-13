@@ -347,7 +347,7 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
                     s.scan.root_path.clone(),
                     s.scan.tree().get(s.scan.tree().root()).allocated,
                 );
-                cfg.set_recent_size(&root, size);
+                cfg.set_recent_size(&root, size, fmt::unix_now());
                 cfg.save();
                 if s.scan.completed() {
                     let point = timeline::point_of(s.scan.tree(), fmt::filetime_now());

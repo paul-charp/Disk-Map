@@ -4,7 +4,7 @@ use crate::{log, paths};
 use diskmap_core::key::root_key;
 use diskmap_core::report::Report;
 use diskmap_core::retention::{keep, parse_stamp, stamp, unix_from_filetime};
-use diskmap_core::summary::{Summary, SummaryOptions};
+use diskmap_core::summary::{Summary, SummaryEntry, SummaryOptions};
 use diskmap_core::tree::Tree;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
@@ -106,6 +106,24 @@ pub fn list(root: &str) -> Vec<Point> {
 pub fn load(path: &Path) -> Result<Summary, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     Summary::decode(&bytes).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Bytes read for the root totals of a point; the header and root entry fit unless the root path is very long.
+const HEAD: u64 = 4096;
+
+/// Reads the root totals of a point from the start of its file.
+pub fn load_root(path: &Path) -> Result<SummaryEntry, String> {
+    use std::io::Read;
+    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
+    let mut head = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|f| f.take(HEAD).read_to_end(&mut head))
+        .map_err(|e| err(&e))?;
+    match Summary::read_root(&head) {
+        Ok((_, root)) => Ok(root),
+        Err(_) if head.len() as u64 == HEAD => Ok(load(path)?.root().clone()),
+        Err(e) => Err(err(&e)),
+    }
 }
 
 /// Writes a point through a temporary file and a rename.

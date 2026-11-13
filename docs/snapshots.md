@@ -152,3 +152,4 @@ Changes apply with Apply. `schedule_set` writes the task first and stores the se
 | `reports(limit)` | The last report lines, newest first (default 50). |
 | `schedule_get` | `config` (the schedule settings), `exists`, `choices` (fixed drives, pins), `admin`. |
 | `schedule_set(schedule)` | Same as `schedule_get` after the change. |
+| `dashboard` | Start screen data: drives with their timeline points, pins, recent, the last 10 reports, schedule, `admin` (`docs/architecture.md`, Start screen). |

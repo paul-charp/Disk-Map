@@ -3,7 +3,7 @@ import { api } from './api.js';
 import { button, iconButton, row, toggle } from './controls.js';
 import { $, el } from './dom.js';
 
-/** Wires the chip and runs the startup check; returns `{rows()}` for the About section. */
+/** Wires the chip and runs the startup check; returns `{rows()}` for the About section and `info()`, the last check. */
 export function initUpdate(app) {
   const chip = $('st-update');
   let info = null;
@@ -16,6 +16,7 @@ export function initUpdate(app) {
     chip.hidden = !available;
     chip.textContent = available ? `Update ${info.version}` : '';
     for (const view of views) (view.isConnected ? view.render() : views.delete(view));
+    app.parts.start?.status();
   };
   const run = async (word, work) => {
     busy = word;
@@ -65,6 +66,7 @@ export function initUpdate(app) {
   };
 
   return {
+    info: () => info,
     rows: () => [
       statusRow(),
       row('Auto check', toggle(app.cfg.check_updates, (v) => app.patchConfig({ check_updates: v }))),

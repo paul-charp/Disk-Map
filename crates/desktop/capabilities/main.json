@@ -54,6 +54,7 @@
     "allow-schedule-set",
     "allow-timeline",
     "allow-reports",
+    "allow-dashboard",
     "allow-snapshots",
     "allow-save-snapshot",
     "allow-delete-snapshot",
