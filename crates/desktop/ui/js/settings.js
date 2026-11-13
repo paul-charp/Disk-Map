@@ -41,6 +41,8 @@ export function initSettings(app) {
       row('Threads', num('threads', THREADS, (v) => (v ? String(v) : 'Auto'))),
       row('Watch changes', flag('watch')),
       row('Highlight changes', flag('highlight_changes')),
+      row('Auto snapshot', flag('auto_snapshot')),
+      row('Keep snapshots', num('keep_snapshots', [1, 2, 3, 5, 10, 20, 50, 100], String)),
     ],
     Schedule: () => scheduleSection(app),
     Classes: () => [classesSection(app)],

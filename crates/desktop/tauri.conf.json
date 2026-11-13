@@ -28,10 +28,31 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
+    "publisher": "paul-charp",
+    "copyright": "Copyright (c) 2026 paul-charp",
+    "homepage": "https://github.com/paul-charp/Disk-Map",
+    "license": "MIT",
+    "licenseFile": "../../LICENSE",
+    "category": "Utility",
+    "shortDescription": "Disk-usage treemap",
+    "longDescription": "Windows disk-usage treemap with live updates and an NTFS MFT scanner.",
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/hooks.nsh"
+      }
+    }
   }
 }

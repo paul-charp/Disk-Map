@@ -14,6 +14,13 @@ Core modules in `crates/core`, working on byte buffers only:
 
 Plan: `docs/roadmap.md`. Storage, retention, reports and the scheduler: below.
 
+## Store and compare mode
+
+- Files: `<data>/snapshots/<root_key(root)>/<YYYYMMDD-HHMMSS>.dmsn` (scan time, UTC; `crates/desktop/src/snapstore.rs`). Manual snapshots end in `-keep` and are never pruned. Writes go to a `.tmp` file, then rename.
+- After every completed full scan (not view rescans, not stopped scans) a snapshot is saved in the background when `auto_snapshot` is on, then the root keeps its newest `keep_snapshots` automatic ones.
+- Compare mode (`crates/desktop/src/compare.rs`, `diskmap_core::compare`): every node of the current tree is matched by path to the snapshot; tiles get a delta class, deleted bytes become a Deleted ghost item per folder. Live changes recompute the match at most every 3 s. A rescan keeps comparing against the same snapshot.
+- Commands: `snapshots`, `save_snapshot`, `delete_snapshot`, `compare`. Test switch `--compare latest|<path>`.
+
 ## Encoding
 
 - Little-endian. `varint` is unsigned LEB128, `zigzag` a signed varint, `str` a varint byte length then UTF-8.

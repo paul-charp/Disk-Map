@@ -61,7 +61,7 @@ pub struct NewEntry<'a> {
 }
 
 /// Arena tree with one shared name buffer.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Tree {
     nodes: Vec<Node>,
     times: Vec<Times>,

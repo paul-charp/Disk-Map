@@ -39,11 +39,11 @@ PaintList decode -> Painter (offscreen canvas) -> MapView canvas + hover and hig
 
 - Header, 4 values: item count, label blob bytes, view root node id, layout time in microseconds.
 - Items, 8 values each: `x, y, w, h, node, meta, parent index, highlight`.
-  - `meta = depth | class << 8 | flags << 16`; class 255 means none. With the age flag the class byte is an age bucket (`diskmap_core::age`, 0 is under a week).
-  - Flags: file 1, dir 2, drilled 4, free 8, unknown 16, selected 32, bold 64, label 128, age 2048. The tag (0 to 4) is stored in the flag bits from bit 8.
+  - `meta = depth | class << 8 | flags << 16`; class 255 means none. With the age flag the class byte is an age bucket (`diskmap_core::age`, 0 is under a week); with the delta flag it is a delta class (`diskmap_core::compare`: 0 same, 1 new, 2 shrunk, 3 to 6 grown by relative growth, 7 deleted).
+  - Flags: file 1, dir 2, drilled 4, free 8, unknown 16, selected 32, bold 64, label 128, age 2048 (bit 11), delta 4096 (bit 12, compare mode), deleted 8192 (bit 13, ghost item of deleted bytes). The tag (0 to 4) is stored in the flag bits from bit 8.
   - `highlight = weight << 16 | warning << 15 | age in ms`; 0 when there is none.
 - Label blob: UTF-8 labels joined by `\n`, one per item flagged label, in item order. A label is `name`, byte 0x01, size text.
-- Item 0 is the view root and lies outside the drawn area. Node ids -1 and -2 are the free and unknown space items.
+- Item 0 is the view root and lies outside the drawn area. Node ids -1 and -2 are the free and unknown space items; `-3 - f` is the deleted item of folder `f` in compare mode.
 - Items are in paint order; hit testing walks them backwards, so the deepest item wins.
 
 ## Sessions and tabs
@@ -97,6 +97,8 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | `backend` | `auto` | `auto`, `mft`, `walk` |
 | `watch` | false | Live updates |
 | `highlight_changes` | false | Change highlight |
+| `auto_snapshot` | true | Save a full snapshot after every completed full scan |
+| `keep_snapshots` | 5 | Automatic snapshots kept per root (1 to 100); manual ones are never pruned |
 | `recent` | empty | Last 8 scanned paths with sizes |
 | `classes` | six defaults | File classes: name, `#rrggbb`, extensions |
 
@@ -109,6 +111,6 @@ The environment variable `DISKMAP_PERF` names a file that receives one timing li
 | Mode | When | Config | Data (snapshots, timeline, logs) |
 | --- | --- | --- | --- |
 | Portable | a `portable` file or a `diskmap.toml` next to the exe | `<exe dir>\diskmap.toml` | `<exe dir>\data\` |
-| Installed | otherwise | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\` |
+| Installed | otherwise | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
 
-The release zip ships the `portable` marker. An existing `diskmap.toml` next to the exe keeps 0.1.0 setups portable. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.
+The release zip ships the `portable` marker. The installer puts the exe in `%LOCALAPPDATA%\diskmap\`, so installed data sits in its `data\` subfolder, like portable. An existing `diskmap.toml` next to the exe keeps 0.1.0 setups portable. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.

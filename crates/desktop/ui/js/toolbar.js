@@ -1,4 +1,5 @@
 // Toolbar row: navigation, breadcrumb and view toggles.
+import { api } from './api.js';
 import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { setIcon } from './icons.js';
@@ -31,7 +32,21 @@ export function initToolbar(app) {
   for (const id of Object.keys(TOGGLES)) $(id).onclick = () => app.toggle(KIND[id]);
   $('b-colors').onclick = () => colorsMenu(app);
   $('b-watch').onclick = () => app.toggle('watch');
+  $('b-compare').onclick = (e) => compareMenu(app, e.currentTarget);
   return (st) => update(app, st);
+}
+
+/** Snapshots of the root, Save now and Off. */
+async function compareMenu(app, button) {
+  const list = await api.snapshots(app.tab.id).catch(() => []);
+  const rows = list.filter((s) => !s.this_scan);
+  const items = rows.length
+    ? rows.map((s) => ({ label: `${s.date} · ${s.size}${s.kept ? ' · Kept' : ''}`, on: s.active, run: () => app.compare(s.path) }))
+    : [{ title: 'No snapshots' }];
+  items.push({ sep: true }, { label: 'Save now', run: () => app.saveSnapshot() });
+  if (app.status.compare) items.push({ label: 'Off', run: () => app.compare(null) });
+  const r = button.getBoundingClientRect();
+  openMenu(items, r.left, r.bottom + 2);
 }
 
 function exportMenu(app, button) {
@@ -64,6 +79,8 @@ function update(app, st) {
   for (const [id, key] of Object.entries(TOGGLES)) $(id).classList.toggle('on', !!st[key]);
   updateColors(st.file_colors ?? 'accent');
   $('b-watch').classList.toggle('on', app.cfg.watch);
+  $('b-compare').classList.toggle('on', !!st.compare);
+  $('b-compare').disabled = !st.active || st.running;
   $('b-side').classList.toggle('on', app.cfg.show_side);
   $('viewsize').textContent = st.view_size ?? '';
   renderCrumbs(app, st.crumbs ?? []);

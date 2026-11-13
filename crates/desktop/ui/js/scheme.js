@@ -17,6 +17,9 @@ export function css(c) {
 
 const pack = (c) => (c[0] << 16) | (c[1] << 8) | c[2];
 
+/** Delta classes of compare mode (`diskmap_core::compare`): same, new, shrunk, four grown steps, deleted. */
+export const DELTA = { SAME: 0, NEW: 1, SHRUNK: 2, GROWN: 3, DELETED: 7 };
+
 /** Names of the age buckets, most recent first. */
 export const AGE_NAMES = ['< 1 week', '< 1 month', '< 6 months', '< 1 year', '< 3 years', 'Older'];
 
@@ -70,6 +73,13 @@ function makeScheme(p) {
     accent: p.accent,
     /** File hues per age bucket, most recent first. */
     age: p.age,
+    /** Hues per delta class, see `DELTA`. */
+    deltaHue: p.delta,
+    /** Fill of a tile in compare mode by delta class; the deleted ghost stays close to the background. */
+    delta: memo(
+      (cls, depth) => (cls === DELTA.DELETED ? legible(mix(p.bg, p.delta[cls], 0.4)) : toward(p.delta[cls], depth)),
+      (cls, depth) => depth * 8 + cls,
+    ),
     free: legible(p.free),
     unknown: legible(p.unknown),
     /** Fill of an open folder panel or a closed folder tile at a depth below the view root. */
@@ -83,23 +93,29 @@ function makeScheme(p) {
   };
 }
 
-/** `age` is the file hue per age bucket, most recent first (see `diskmap_core::age`). */
-const palette = (name, dark, bg, folder, file, free, unknown, accent, age) => ({
+/** `age` is the file hue per age bucket, most recent first (see `diskmap_core::age`); `delta` the hue per delta class (see `DELTA`). */
+const palette = (name, dark, bg, folder, file, free, unknown, accent, age, delta) => ({
   name, dark, bg: parseHex(bg), folder: parseHex(folder), file: parseHex(file), free: parseHex(free), unknown: parseHex(unknown), accent: parseHex(accent),
   age: age.map(parseHex),
+  delta: delta.map(parseHex),
 });
 
 export const SCHEMES = Object.fromEntries(
   [
     palette('graphite', true, '#131416', '#5d6573', '#3f78b8', '#4a6656', '#2c2d32', '#4c9aff',
-      ['#f08c3c', '#e3b341', '#8fbf5a', '#3fa39a', '#3f78b8', '#4b5160']),
+      ['#f08c3c', '#e3b341', '#8fbf5a', '#3fa39a', '#3f78b8', '#4b5160'],
+      ['#3a3e46', '#3fae6a', '#3f78b8', '#c9a83a', '#e08a32', '#e0602f', '#d0364a', '#a05a6a']),
     palette('paper', false, '#c5c9d0', '#e4e7ec', '#9ec1e6', '#bfd3c6', '#b0b3ba', '#0b63ce',
-      ['#f3a467', '#f0d27a', '#b9db92', '#94d1c6', '#9ec1e6', '#d6d9de']),
+      ['#f3a467', '#f0d27a', '#b9db92', '#94d1c6', '#9ec1e6', '#d6d9de'],
+      ['#d3d6db', '#97d4ab', '#9ec1e6', '#f0d77e', '#f4b56b', '#ef8d64', '#e6687c', '#c79aa6']),
     palette('dusk', true, '#12161d', '#566478', '#3a8fa8', '#44665a', '#262c38', '#62a8f0',
-      ['#f0904b', '#e3c45a', '#8fc46a', '#4fb0a8', '#3a8fa8', '#4a5468']),
+      ['#f0904b', '#e3c45a', '#8fc46a', '#4fb0a8', '#3a8fa8', '#4a5468'],
+      ['#343b47', '#45b07a', '#3a8fa8', '#d0b44a', '#e3913c', '#e06538', '#d23f55', '#9a5c70']),
     palette('ember', true, '#151311', '#5f5b57', '#c0672f', '#4f6655', '#2a2724', '#d9825b',
-      ['#f26b2e', '#e0a040', '#c2b45a', '#7f9a6a', '#5c7a8a', '#4a4643']),
+      ['#f26b2e', '#e0a040', '#c2b45a', '#7f9a6a', '#5c7a8a', '#4a4643'],
+      ['#3e3a36', '#6fae5c', '#5c7a8a', '#d6b04a', '#e48c3a', '#e2602e', '#cf3b3b', '#9a6058']),
     palette('violet', true, '#121215', '#605c78', '#7a5fd0', '#4a6458', '#27272e', '#a78bfa',
-      ['#f0806a', '#e6b45a', '#9fca6a', '#56b0b8', '#7a5fd0', '#4b4762']),
+      ['#f0806a', '#e6b45a', '#9fca6a', '#56b0b8', '#7a5fd0', '#4b4762'],
+      ['#3a3944', '#4fb07a', '#6a78d0', '#d4b24e', '#e68e4a', '#e5644a', '#d23c62', '#93607e']),
   ].map((p) => [p.name, makeScheme(p)]),
 );

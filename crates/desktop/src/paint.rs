@@ -3,7 +3,8 @@
 //! Layout of the buffer, all little-endian `i32`:
 //! - header: item count, label blob bytes, view root node, layout micros;
 //! - items: x, y, w, h, node, meta, parent index, highlight
-//!   (meta = depth | class << 8 | flags << 16, class is an age bucket when [`F_AGE`] is set; highlight = weight << 16 | warning << 15 | age in ms, 0 for none);
+//!   (meta = depth | class << 8 | flags << 16, class is an age bucket when [`F_AGE`] is set and a
+//!   delta class when [`F_DELTA`] is set; highlight = weight << 16 | warning << 15 | age in ms, 0 for none);
 //! - label blob: UTF-8 labels joined by `\n`, one per item flagged [`F_LABEL`], in item order.
 //!   A label is `name\u{1}size`. Item 0 is the view root; its rect lies outside the area.
 
@@ -12,6 +13,7 @@ use crate::fmt;
 use crate::session::Session;
 use diskmap_core::age::age_bucket;
 use diskmap_core::classes::FileClasses;
+use diskmap_core::compare::CLASS_DELETED;
 use diskmap_core::layout::{Item, ItemKind, LayoutParams, Rect, layout};
 use diskmap_core::tree::{NodeId, NodeKind};
 use std::time::Instant;
@@ -20,6 +22,13 @@ use std::time::Instant;
 pub const FREE_ID: i32 = -1;
 /// Node id of the unknown-space item.
 pub const UNKNOWN_ID: i32 = -2;
+/// Node id of the deleted item of folder `f` is `DELETED_BASE - f`.
+pub const DELETED_BASE: i32 = -3;
+
+/// The folder of a deleted item's node id.
+pub fn deleted_folder(node: i32) -> Option<NodeId> {
+    (node <= DELETED_BASE).then(|| NodeId((DELETED_BASE - node) as u32))
+}
 
 const F_FILE: u32 = 1;
 const F_DIR: u32 = 2;
@@ -32,6 +41,10 @@ const F_LABEL: u32 = 128;
 const TAG_SHIFT: u32 = 8;
 /// The class byte holds an age bucket instead of a class.
 const F_AGE: u32 = 1 << 11;
+/// Compare mode: the class byte holds a delta class (`diskmap_core::compare`).
+const F_DELTA: u32 = 1 << 12;
+/// A deleted pseudo-item of compare mode, drawn as a ghost.
+const F_DELETED: u32 = 1 << 13;
 const NO_CLASS: u32 = 255;
 const HEADER_INTS: usize = 4;
 const ITEM_INTS: usize = 8;
@@ -106,8 +119,19 @@ impl Encoder<'_> {
             ItemKind::Node(id) => (self.name(id), self.s.size_of(id)),
             ItemKind::Free => ("Free".to_string(), self.free),
             ItemKind::Unknown => ("Unknown".to_string(), self.unknown),
+            ItemKind::Deleted(id) => ("Deleted".to_string(), self.deleted(id)),
         };
         format!("{name}\u{1}{}", fmt::size(size))
+    }
+
+    fn deleted(&self, id: NodeId) -> u64 {
+        self.s.compare.as_ref().map_or(0, |c| c.map.deleted(id))
+    }
+
+    /// Delta class of a node in compare mode.
+    fn delta_class(&self, id: NodeId) -> Option<u32> {
+        let c = self.s.compare.as_ref()?;
+        Some(u32::from(c.map.class(self.s.scan.tree(), id)))
     }
 
     fn describe(&self, kind: ItemKind, item: &Item) -> (i32, u32, u32) {
@@ -116,11 +140,19 @@ impl Encoder<'_> {
         let id = match kind {
             ItemKind::Free => return (FREE_ID, flags | F_FREE, NO_CLASS),
             ItemKind::Unknown => return (UNKNOWN_ID, flags | F_UNKNOWN, NO_CLASS),
+            ItemKind::Deleted(id) => {
+                let node = DELETED_BASE - id.0 as i32;
+                return (node, flags | F_DELETED | F_DELTA, u32::from(CLASS_DELETED));
+            }
             ItemKind::Node(id) => id,
         };
+        let file = tree.get(id).kind == NodeKind::File;
+        flags |= if file { F_FILE } else { F_DIR };
         let mut class = NO_CLASS;
-        if tree.get(id).kind == NodeKind::File {
-            flags |= F_FILE;
+        if let Some(c) = self.delta_class(id) {
+            flags |= F_DELTA;
+            class = c;
+        } else if file {
             match self.s.view.file_colors {
                 FileColors::Accent => {}
                 FileColors::Class => {
@@ -132,8 +164,6 @@ impl Encoder<'_> {
                     class = u32::from(age_bucket(tree.times(id).mtime, self.cx.now));
                 }
             }
-        } else {
-            flags |= F_DIR;
         }
         if self.s.selection == Some(id) {
             flags |= F_SELECTED;
@@ -149,8 +179,11 @@ impl Encoder<'_> {
         if i == 0 {
             return -1;
         }
-        let ItemKind::Node(id) = kind else { return 0 };
-        let parent = self.s.scan.tree().parent(id);
+        let parent = match kind {
+            ItemKind::Node(id) => self.s.scan.tree().parent(id),
+            ItemKind::Deleted(folder) => Some(folder),
+            _ => return 0,
+        };
         parent.map_or(0, |p| self.index_of[p.0 as usize] as i32)
     }
 
@@ -190,6 +223,7 @@ pub fn build(s: &Session, cx: &PaintCtx<'_>) -> Vec<u8> {
         gap: m.gap,
         free,
         unknown,
+        deleted: s.ghosts().map_or(&[], |c| c.deleted_slice()),
     };
     let edge = m.gap / 2.0;
     let bounds = Rect {
@@ -200,7 +234,7 @@ pub fn build(s: &Session, cx: &PaintCtx<'_>) -> Vec<u8> {
     };
     let tree = s.scan.tree();
     let mut items = Vec::new();
-    layout(tree, s.sizes(), s.root, bounds, &params, &mut items);
+    layout(tree, s.layout_sizes(), s.root, bounds, &params, &mut items);
 
     let mut index_of = vec![u32::MAX; tree.len()];
     for (i, it) in items.iter().enumerate() {
@@ -299,6 +333,64 @@ mod tests {
         assert_eq!(blob.split('\n').count(), labelled);
         let first_child = HEADER_INTS + ITEM_INTS;
         assert!(word(&buf, first_child) >= 0 && word(&buf, first_child + 1) >= 0);
+    }
+
+    #[test]
+    fn compare_mode_adds_deleted_items_and_delta_classes() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("kept.bin"), vec![0u8; 40_000]).expect("write");
+        let mut session = scanned_session(dir.path());
+        let mut old = session.scan.tree().clone();
+        let r = old.root();
+        old.add_child(
+            r,
+            diskmap_core::tree::NewEntry {
+                name: "gone.bin",
+                kind: NodeKind::File,
+                attrs: 0x20,
+                logical: 30_000,
+                allocated: 32_768,
+                times: diskmap_core::tree::Times::default(),
+            },
+        );
+        let base = crate::compare::Base {
+            tree: std::sync::Arc::new(old),
+            path: "x.dmsn".into(),
+            time: 0,
+        };
+        let classes = FileClasses::default();
+        session.set_compare(Some(base), &classes);
+        let cx = PaintCtx {
+            classes: &classes,
+            min_tile: 4,
+            text_scale: 1.0,
+            width: 400,
+            height: 300,
+            dpr: 1.0,
+            highlight: false,
+            now: fmt::filetime_now(),
+        };
+        let buf = build(&session, &cx);
+        let items: Vec<(i32, u32)> = (1..word(&buf, 0) as usize)
+            .map(|i| {
+                let o = HEADER_INTS + i * ITEM_INTS;
+                (word(&buf, o + 4), word(&buf, o + 5) as u32)
+            })
+            .collect();
+        let ghost = items
+            .iter()
+            .find(|(_, m)| m >> 16 & F_DELETED != 0)
+            .expect("deleted item");
+        assert_eq!(deleted_folder(ghost.0), Some(session.scan.tree().root()));
+        let file = items
+            .iter()
+            .find(|(_, m)| m >> 16 & F_FILE != 0)
+            .expect("file");
+        assert_ne!(file.1 >> 16 & F_DELTA, 0);
+        assert_eq!(
+            file.1 >> 8 & 255,
+            u32::from(diskmap_core::compare::CLASS_SAME)
+        );
     }
 
     #[test]

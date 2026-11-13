@@ -5,6 +5,7 @@
 mod appearance;
 mod args;
 mod commands;
+mod compare;
 mod config;
 mod elevate;
 mod fmt;
@@ -17,6 +18,8 @@ mod scan;
 mod scheduler;
 mod session;
 mod shell;
+mod snapcmds;
+mod snapstore;
 mod state;
 mod timeline;
 mod toast;
@@ -114,6 +117,10 @@ fn main() {
             commands::schedule_set,
             commands::timeline,
             commands::reports,
+            snapcmds::snapshots,
+            snapcmds::save_snapshot,
+            snapcmds::delete_snapshot,
+            snapcmds::compare,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

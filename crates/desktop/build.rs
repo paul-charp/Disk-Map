@@ -45,6 +45,10 @@ const COMMANDS: &[&str] = &[
     "schedule_set",
     "timeline",
     "reports",
+    "snapshots",
+    "save_snapshot",
+    "delete_snapshot",
+    "compare",
 ];
 
 fn main() {

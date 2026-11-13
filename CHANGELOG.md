@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Portable and installed storage: a `portable` marker (shipped in the zip) or an existing `diskmap.toml` keeps everything next to the exe; otherwise settings go to `%APPDATA%\diskmap` and data to `%LOCALAPPDATA%\diskmap`.
+- Portable and installed storage: a `portable` marker (shipped in the zip) or an existing `diskmap.toml` keeps everything next to the exe; otherwise settings go to `%APPDATA%\diskmap` and data to `%LOCALAPPDATA%\diskmap\data`.
 - Core snapshot format, timeline points and tree diff with top movers (`docs/snapshots.md`).
 - Output panel (Ctrl+`) with the application log: command, scan, watcher, config and script errors, level filter, Copy, Clear; error and warning counts in the status bar; mirrored to `diskmap.log` next to the config file (1 MB, rotated to `.1`); test switch `--log`.
 - About section in Settings (version, license, GitHub and Issues links, config path with Reveal, build), opened from an info button in the toolbar.
@@ -11,6 +11,8 @@
 - Export of the view, the selection, top files and top folders as CSV or JSON (toolbar Export menu, context menu), honouring the filter and the detail level.
 - Periodic scans: a timeline point after every full scan; headless `--snapshot <root> [--quiet] [--no-toast]` that scans, stores a point, prunes by retention (daily 90 days, weekly to a year, then monthly), appends to `reports.jsonl` and shows a toast with the top mover; Schedule section in Settings that registers a daily or weekly task `diskmap\Snapshot` in Task Scheduler, optionally elevated for the MFT backend; commands `schedule_get`, `schedule_set`, `timeline` and `reports`.
 - File colour mode Accent, Class or Age: age colours files by modification time with a ramp per theme, an Age legend in the side panel and the `--colour` test switch. Replaces the class colour toggle; `class_colors` in old configs is still read.
+- Snapshots and compare mode: a full snapshot after every scan (Settings, Scan: Auto snapshot, Keep snapshots) and Save now; the toolbar Compare menu colours tiles by change (new, grown, shrunk, same), shows deleted bytes as hatched Deleted tiles, adds old size and change to the tooltip and a Changes list to the side panel; filters `is:new`, `is:grown`, `is:shrunk`, `is:deleted`, `delta:>1GB`; status bar chip; test switch `--compare`.
+- NSIS installer `diskmap-<tag>-windows-x64-setup.exe` next to the portable zip: per-user install without admin, Start menu shortcut, optional desktop shortcut, uninstaller that keeps settings and data unless asked to delete them. CI builds it on `release/*` branches and on manual runs.
 
 ## 0.1.0
 

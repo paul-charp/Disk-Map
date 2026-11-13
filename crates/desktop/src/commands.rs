@@ -2,11 +2,12 @@
 
 use crate::appearance;
 use crate::args::{Args, Flags};
+use crate::compare::under;
 use crate::config::{ClassDef, Config, FileColors, Schedule, class_defs, hex, same_path};
 use crate::elevate;
 use crate::fmt;
 use crate::log;
-use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
+use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID, deleted_folder};
 use crate::paths;
 use crate::scheduler;
 use crate::session::{Session, find_by_names};
@@ -18,6 +19,7 @@ use crate::timeline;
 use crate::watch;
 use diskmap_core::age::age_bucket;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
+use diskmap_core::diff::{DiffEntry, Status as DeltaStatus};
 use diskmap_core::export::{self, Format, Row, Source};
 use diskmap_core::log::Level;
 use diskmap_core::tags::Tag;
@@ -27,7 +29,8 @@ use serde::Serialize;
 use std::io::Write;
 use tauri::{AppHandle, State, WebviewWindow};
 
-type Res<T> = Result<T, CmdError>;
+/// Result of a command.
+pub type Res<T> = Result<T, CmdError>;
 
 /// Error of a command, sent to the front end as its text. Creating one logs it.
 #[derive(Debug)]
@@ -53,7 +56,7 @@ impl From<&str> for CmdError {
 }
 
 /// An error that is expected in normal use and not logged, such as a call racing a closed tab.
-struct Quiet(&'static str);
+pub struct Quiet(&'static str);
 
 impl From<Quiet> for CmdError {
     fn from(q: Quiet) -> Self {
@@ -61,7 +64,8 @@ impl From<Quiet> for CmdError {
     }
 }
 
-const NO_SESSION: Quiet = Quiet("No scan");
+/// Error of a command on a tab without a scan.
+pub const NO_SESSION: Quiet = Quiet("No scan");
 
 /// Name and colour of a file class.
 #[derive(Serialize)]
@@ -210,16 +214,23 @@ pub async fn layout(
     height: u32,
     dpr: f32,
 ) -> Res<tauri::ipc::Response> {
-    let g = state.lock();
-    let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+    let mut g = state.lock();
+    let Inner {
+        sessions,
+        classes,
+        cfg,
+        ..
+    } = &mut *g;
+    let s = sessions.get_mut(&tab).ok_or(NO_SESSION)?;
+    s.refresh_compare(false, classes);
     let cx = PaintCtx {
-        classes: &g.classes,
-        min_tile: g.cfg.min_tile,
-        text_scale: g.cfg.text_scale(),
+        classes,
+        min_tile: cfg.min_tile,
+        text_scale: cfg.text_scale(),
         width,
         height,
         dpr,
-        highlight: g.cfg.highlight_changes,
+        highlight: cfg.highlight_changes,
         now: fmt::filetime_now(),
     };
     Ok(tauri::ipc::Response::new(paint::build(s, &cx)))
@@ -369,6 +380,53 @@ pub struct Details {
     age: Option<u8>,
     tag: u8,
     pinned: bool,
+    /// Compare mode: size in the snapshot, empty when new.
+    old: String,
+    /// Compare mode: size change.
+    delta: String,
+    /// Compare mode: `New`, `Grown`, `Shrunk`, `Same` or `Deleted`.
+    change: &'static str,
+}
+
+fn status_name(st: DeltaStatus) -> &'static str {
+    match st {
+        DeltaStatus::New => "New",
+        DeltaStatus::Deleted => "Deleted",
+        DeltaStatus::Grown => "Grown",
+        DeltaStatus::Shrunk => "Shrunk",
+        DeltaStatus::Same => "Same",
+    }
+}
+
+/// Old size, change and status of a node in compare mode.
+fn add_delta(s: &Session, id: NodeId, d: &mut Details) {
+    let Some(c) = s.compare.as_ref() else { return };
+    let tree = s.scan.tree();
+    d.old = c.map.old_size(id).map_or_else(String::new, fmt::size);
+    d.delta = fmt::delta(c.map.delta(tree, id));
+    d.change = status_name(c.map.status(tree, id));
+}
+
+fn deleted_details(s: &Session, node: i32, folder: NodeId) -> Res<Details> {
+    let tree = s.scan.tree();
+    let c = s.compare.as_ref().ok_or("Not comparing")?;
+    if folder.0 as usize >= tree.len() {
+        return Err("Unknown node".into());
+    }
+    let bytes = c.map.deleted(folder);
+    Ok(Details {
+        id: node,
+        name: "Deleted".into(),
+        path: tree.full_path(folder),
+        kind: "deleted",
+        size: fmt::size(bytes),
+        disk: fmt::size(bytes),
+        items: Some(c.map.deleted_items(folder)),
+        old: fmt::size(bytes),
+        delta: fmt::delta(-(bytes.min(i64::MAX as u64) as i64)),
+        change: "Deleted",
+        ..Details::default()
+    })
 }
 
 fn special_details(s: &Session, id: i32) -> Details {
@@ -397,6 +455,9 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
     if node == FREE_ID || node == UNKNOWN_ID {
         return Ok(special_details(s, node));
     }
+    if let Some(folder) = deleted_folder(node) {
+        return deleted_details(s, node, folder);
+    }
     let id = node_id(s, node).ok_or("Unknown node")?;
     let tree = s.scan.tree();
     let n = tree.get(id);
@@ -414,7 +475,7 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
         String::new()
     };
     let path = tree.full_path(id);
-    Ok(Details {
+    let mut d = Details {
         id: node,
         name: tree.name(id).to_string(),
         pinned: !is_file && g.cfg.is_pinned(&path),
@@ -430,7 +491,10 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
         class,
         age: is_file.then(|| age_bucket(times.mtime, fmt::filetime_now())),
         tag: s.tags.raw(id),
-    })
+        ..Details::default()
+    };
+    add_delta(s, id, &mut d);
+    Ok(d)
 }
 
 /// One row of the largest-items lists.
@@ -459,6 +523,60 @@ pub struct StatsOut {
     classes: Vec<ClassRow>,
     /// Bytes per age bucket, most recent first.
     ages: Vec<AgeRow>,
+    /// Compare mode: largest changes under the view root.
+    changes: Option<Changes>,
+}
+
+/// One row of the changes lists.
+#[derive(Serialize)]
+pub struct ChangeRow {
+    /// The node, or its nearest existing folder when deleted.
+    id: Option<u32>,
+    name: String,
+    parent: String,
+    delta: String,
+    change: &'static str,
+}
+
+/// Top growers and shrinkers.
+#[derive(Serialize)]
+pub struct Changes {
+    growers: Vec<ChangeRow>,
+    shrinkers: Vec<ChangeRow>,
+}
+
+const CHANGES_N: usize = 10;
+
+fn change_row(tree: &diskmap_core::tree::Tree, e: &DiffEntry) -> ChangeRow {
+    let (parent, name) = e.path.rsplit_once('\\').unwrap_or(("", &e.path));
+    let id = tree.find_path(&e.path).or_else(|| tree.find_path(parent));
+    ChangeRow {
+        id: id.map(|n| n.0),
+        name: name.to_string(),
+        parent: parent.to_string(),
+        delta: fmt::delta(e.delta()),
+        change: status_name(e.status),
+    }
+}
+
+/// Largest changes under the view root, when comparing.
+fn changes(s: &mut Session) -> Option<Changes> {
+    let root = s.rel_path(s.root);
+    let ver = s.scan.version;
+    let tree = s.scan.tree();
+    let m = s.compare.as_mut()?.movers(tree, ver);
+    let rows = |list: &[usize]| {
+        list.iter()
+            .map(|&i| &m.entries[i])
+            .filter(|e| under(&e.path, &root))
+            .take(CHANGES_N)
+            .map(|e| change_row(tree, e))
+            .collect()
+    };
+    Some(Changes {
+        growers: rows(&m.growers),
+        shrinkers: rows(&m.shrinkers),
+    })
 }
 
 /// Bytes of one age bucket.
@@ -523,6 +641,7 @@ pub async fn stats(state: State<'_, AppState>, tab: TabId) -> Res<StatsOut> {
         folders: tops(s, &folders),
         classes: rows,
         ages,
+        changes: changes(s),
     })
 }
 
