@@ -2,17 +2,19 @@
 
 use crate::appearance;
 use crate::args::{Args, Flags};
-use crate::config::{ClassDef, Config, FileColors, class_defs, hex};
+use crate::config::{ClassDef, Config, FileColors, Schedule, class_defs, hex, same_path};
 use crate::elevate;
 use crate::fmt;
 use crate::log;
 use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
 use crate::paths;
+use crate::scheduler;
 use crate::session::{Session, find_by_names};
 use crate::shell;
 use crate::state::{
     AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
+use crate::timeline;
 use crate::watch;
 use diskmap_core::age::age_bucket;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
@@ -927,4 +929,116 @@ pub async fn reveal_config() -> Res<()> {
         shell::open(&dir.to_string_lossy());
     }
     Ok(())
+}
+
+/// The schedule settings, whether the task exists, and the folders it can snapshot.
+#[derive(Serialize)]
+pub struct ScheduleInfo {
+    config: Schedule,
+    /// The task is registered in Task Scheduler.
+    exists: bool,
+    /// Fixed drives and pinned folders.
+    choices: Vec<String>,
+    /// This process runs as administrator.
+    admin: bool,
+}
+
+fn schedule_info(config: Schedule, pins: Vec<String>, exists: bool) -> ScheduleInfo {
+    let mut choices: Vec<String> = list_drives()
+        .into_iter()
+        .filter(|d| d.kind == DriveKind::Fixed)
+        .map(|d| d.root)
+        .collect();
+    for r in pins.into_iter().chain(config.roots.iter().cloned()) {
+        if !choices.iter().any(|c| same_path(c, &r)) {
+            choices.push(r);
+        }
+    }
+    ScheduleInfo {
+        config,
+        exists,
+        choices,
+        admin: diskmap_scan::is_elevated(),
+    }
+}
+
+async fn task_exists() -> Res<bool> {
+    Ok(tauri::async_runtime::spawn_blocking(scheduler::exists)
+        .await
+        .map_err(|e| e.to_string())?)
+}
+
+/// Schedule settings and the state of the task.
+#[tauri::command]
+pub async fn schedule_get(state: State<'_, AppState>) -> Res<ScheduleInfo> {
+    let (config, pins) = {
+        let g = state.lock();
+        (g.cfg.schedule.clone(), g.cfg.pins.clone())
+    };
+    Ok(schedule_info(config, pins, task_exists().await?))
+}
+
+/// Creates, replaces or deletes the task, then stores the settings. Nothing is stored on failure.
+#[tauri::command]
+pub async fn schedule_set(state: State<'_, AppState>, schedule: Schedule) -> Res<ScheduleInfo> {
+    let mut new = schedule;
+    new.sanitize();
+    let (old, pins) = {
+        let g = state.lock();
+        (g.cfg.schedule.clone(), g.cfg.pins.clone())
+    };
+    let task = new.clone();
+    tauri::async_runtime::spawn_blocking(move || scheduler::apply(&old, &task))
+        .await
+        .map_err(|e| e.to_string())??;
+    {
+        let mut g = state.lock();
+        g.cfg.schedule = new.clone();
+        g.cfg.save();
+    }
+    Ok(schedule_info(new, pins, task_exists().await?))
+}
+
+/// Totals of one timeline point.
+#[derive(Serialize)]
+pub struct TimelinePoint {
+    /// Unix seconds, UTC.
+    time: i64,
+    allocated: u64,
+    logical: u64,
+    files: u64,
+}
+
+fn timeline_points(root: &str) -> Vec<TimelinePoint> {
+    timeline::list(root)
+        .into_iter()
+        .filter_map(|p| {
+            let s = timeline::load(&p.path)
+                .map_err(|e| log::warn("timeline", e))
+                .ok()?;
+            let r = s.root();
+            Some(TimelinePoint {
+                time: p.time,
+                allocated: r.allocated,
+                logical: r.logical,
+                files: r.files,
+            })
+        })
+        .collect()
+}
+
+/// The timeline points of a root, oldest first.
+#[tauri::command]
+pub async fn timeline(root: String) -> Res<Vec<TimelinePoint>> {
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || timeline_points(&root))
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+}
+
+/// The most recent report lines, newest first (default 50).
+#[tauri::command]
+pub async fn reports(limit: Option<usize>) -> Res<Vec<timeline::ReportLine>> {
+    Ok(timeline::reports(limit.unwrap_or(50)))
 }

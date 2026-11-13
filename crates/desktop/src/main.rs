@@ -8,14 +8,18 @@ mod commands;
 mod config;
 mod elevate;
 mod fmt;
+mod headless;
 mod log;
 mod marks;
 mod paint;
 mod paths;
 mod scan;
+mod scheduler;
 mod session;
 mod shell;
 mod state;
+mod timeline;
+mod toast;
 mod watch;
 
 use args::Args;
@@ -43,7 +47,11 @@ fn main() {
         format!("diskmap {} started", env!("CARGO_PKG_VERSION")),
     );
     let mut cfg = Config::load();
-    Args::from_env().apply(&mut cfg);
+    let args = Args::from_env();
+    args.apply(&mut cfg);
+    if !args.headless.roots.is_empty() {
+        std::process::exit(headless::run(&args.headless, &cfg));
+    }
     let startup = cfg.clone();
     tauri::Builder::default()
         .manage(AppState::new(cfg))
@@ -102,6 +110,10 @@ fn main() {
             commands::about,
             commands::open_link,
             commands::reveal_config,
+            commands::schedule_get,
+            commands::schedule_set,
+            commands::timeline,
+            commands::reports,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

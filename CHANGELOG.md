@@ -9,6 +9,7 @@
 - Pinned folders: Pinned section on the start screen, pin buttons on recent rows, Pin and Unpin in the map context menu.
 - Context menu: Open in terminal, Properties, Scan in new tab and Recycle (with confirm).
 - Export of the view, the selection, top files and top folders as CSV or JSON (toolbar Export menu, context menu), honouring the filter and the detail level.
+- Periodic scans: a timeline point after every full scan; headless `--snapshot <root> [--quiet] [--no-toast]` that scans, stores a point, prunes by retention (daily 90 days, weekly to a year, then monthly), appends to `reports.jsonl` and shows a toast with the top mover; Schedule section in Settings that registers a daily or weekly task `diskmap\Snapshot` in Task Scheduler, optionally elevated for the MFT backend; commands `schedule_get`, `schedule_set`, `timeline` and `reports`.
 - File colour mode Accent, Class or Age: age colours files by modification time with a ramp per theme, an Age legend in the side panel and the `--colour` test switch. Replaces the class colour toggle; `class_colors` in old configs is still read.
 
 ## 0.1.0

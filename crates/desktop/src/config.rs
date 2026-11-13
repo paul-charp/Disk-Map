@@ -2,6 +2,7 @@
 
 use crate::{log, paths};
 use diskmap_core::classes::{FileClass, FileClasses};
+use diskmap_core::schedule::{Plan, day_index, parse_time};
 use serde::{Deserialize, Serialize};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,7 @@ const MIN_TILE_RANGE: (u32, u32) = (2, 16);
 const MAX_THREADS: u32 = 64;
 const TEXT_SIZES: [&str; 3] = ["small", "medium", "large"];
 const BACKENDS: [&str; 3] = ["auto", "mft", "walk"];
+const EVERY: [&str; 2] = ["daily", "weekly"];
 
 /// Which scan backend a scan should use.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,6 +82,76 @@ pub struct ClassDef {
     pub extensions: Vec<String>,
 }
 
+/// Periodic snapshot task, created in Task Scheduler by `schedule_set`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Schedule {
+    pub enabled: bool,
+    /// `daily` or `weekly`.
+    pub every: String,
+    /// Day of a weekly run, `mon` to `sun`.
+    pub day: String,
+    /// Local start time, `HH:MM`.
+    pub time: String,
+    /// Folders to snapshot, normalised, without duplicates.
+    pub roots: Vec<String>,
+    /// Run with highest privileges so the MFT backend can be used.
+    pub elevated: bool,
+}
+
+impl Default for Schedule {
+    fn default() -> Self {
+        Schedule {
+            enabled: false,
+            every: "daily".into(),
+            day: "mon".into(),
+            time: "12:00".into(),
+            roots: Vec::new(),
+            elevated: false,
+        }
+    }
+}
+
+impl Schedule {
+    /// Brings every value back into its valid range.
+    pub fn sanitize(&mut self) {
+        let def = Schedule::default();
+        if !EVERY.contains(&self.every.as_str()) {
+            self.every = def.every;
+        }
+        self.day = match day_index(&self.day) {
+            Some(i) => diskmap_core::schedule::DAYS[i].into(),
+            None => def.day,
+        };
+        if parse_time(&self.time).is_none() {
+            self.time = def.time;
+        }
+        let mut roots: Vec<String> = Vec::new();
+        for r in self.roots.iter().map(|r| normalize(r)) {
+            if !r.is_empty() && !roots.iter().any(|k| same_path(k, &r)) {
+                roots.push(r);
+            }
+        }
+        self.roots = roots;
+    }
+
+    /// What the task runs and when, for the app at `exe`.
+    pub fn plan(&self, exe: &str) -> Result<Plan, String> {
+        let (hour, minute) = parse_time(&self.time).ok_or("Invalid time")?;
+        if self.roots.is_empty() {
+            return Err("No folders to snapshot".into());
+        }
+        Ok(Plan {
+            exe: exe.into(),
+            roots: self.roots.clone(),
+            weekday: (self.every == "weekly").then(|| day_index(&self.day).unwrap_or(0)),
+            hour,
+            minute,
+            elevated: self.elevated,
+        })
+    }
+}
+
 /// Persisted settings.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
@@ -109,6 +181,7 @@ pub struct Config {
     pub watch: bool,
     pub highlight_changes: bool,
     pub classes: Vec<ClassDef>,
+    pub schedule: Schedule,
 }
 
 impl Default for Config {
@@ -131,6 +204,7 @@ impl Default for Config {
             watch: false,
             highlight_changes: false,
             classes: class_defs(&FileClasses::default()),
+            schedule: Schedule::default(),
         }
     }
 }
@@ -218,6 +292,7 @@ impl Config {
         for p in std::mem::take(&mut self.pins) {
             self.set_pin(&p, true);
         }
+        self.schedule.sanitize();
         for c in &mut self.classes {
             c.name = c.name.trim().to_string();
             if c.name.is_empty() {
@@ -226,10 +301,11 @@ impl Config {
         }
     }
 
-    /// Replaces every setting but the recent list and the pins with those of `new`.
+    /// Replaces every setting but the recent list, the pins and the schedule with those of `new`.
     pub fn replace(&mut self, mut new: Config) {
         new.recent = std::mem::take(&mut self.recent);
         new.pins = std::mem::take(&mut self.pins);
+        new.schedule = std::mem::take(&mut self.schedule);
         new.sanitize();
         *self = new;
     }
@@ -417,6 +493,39 @@ mod tests {
         assert_eq!(cfg.file_colors, FileColors::Age);
         let text = toml::to_string(&cfg).expect("save");
         assert!(text.contains("file_colors = \"age\""));
+    }
+
+    #[test]
+    fn schedule_is_sanitized_and_planned() {
+        let mut s = Schedule {
+            every: "hourly".into(),
+            day: "Wed".into(),
+            time: "25:00".into(),
+            roots: vec![
+                "C:\\".into(),
+                "c:\\".into(),
+                "D:\\data\\".into(),
+                " ".into(),
+            ],
+            ..Schedule::default()
+        };
+        s.sanitize();
+        assert_eq!((s.every.as_str(), s.day.as_str()), ("daily", "wed"));
+        assert_eq!(s.time, "12:00");
+        assert_eq!(s.roots, ["C:\\", "D:\\data"]);
+        s.every = "weekly".into();
+        let p = s.plan("x.exe").expect("plan");
+        assert_eq!((p.weekday, p.hour, p.minute), (Some(2), 12, 0));
+        s.roots.clear();
+        assert!(s.plan("x.exe").is_err());
+    }
+
+    #[test]
+    fn replace_keeps_schedule() {
+        let mut cfg = Config::default();
+        cfg.schedule.enabled = true;
+        cfg.replace(Config::default());
+        assert!(cfg.schedule.enabled);
     }
 
     #[test]

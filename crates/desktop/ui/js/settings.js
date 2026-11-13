@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { classesSection } from './classtable.js';
+import { scheduleSection } from './schedule.js';
 import { button, iconButton, row, segmented, stepper, swatches, toggle } from './controls.js';
 import { setIcon } from './icons.js';
 import { SHORTCUTS } from './keys.js';
@@ -41,6 +42,7 @@ export function initSettings(app) {
       row('Watch changes', flag('watch')),
       row('Highlight changes', flag('highlight_changes')),
     ],
+    Schedule: () => scheduleSection(app),
     Classes: () => [classesSection(app)],
     Keys: () => [keyList()],
     About: () => aboutSection(),

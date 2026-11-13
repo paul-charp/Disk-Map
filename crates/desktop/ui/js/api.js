@@ -46,6 +46,10 @@ export const api = {
   about: () => invoke('about'),
   openLink: (link) => invoke('open_link', { link }),
   revealConfig: () => invoke('reveal_config'),
+  scheduleGet: () => invoke('schedule_get'),
+  scheduleSet: (schedule) => invoke('schedule_set', { schedule }),
+  timeline: (root) => invoke('timeline', { root }),
+  reports: (limit = null) => invoke('reports', { limit }),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));

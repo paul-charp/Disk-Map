@@ -5,6 +5,7 @@ use crate::fmt;
 use crate::log::{self, Log};
 use crate::scan::Scan;
 use crate::session::{Restore, Session, ViewOpts};
+use crate::timeline;
 use crate::watch;
 use crossbeam_channel::{Receiver, RecvTimeoutError};
 use diskmap_core::classes::FileClasses;
@@ -324,6 +325,10 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
                 );
                 cfg.set_recent_size(&root, size);
                 cfg.save();
+                if s.scan.completed() {
+                    let point = timeline::point_of(s.scan.tree(), fmt::filetime_now());
+                    std::thread::spawn(move || timeline::record(&point));
+                }
             }
             let due = done || last_emit.elapsed() >= EMIT_EVERY;
             (due.then(|| status(&g, tab)), done)
@@ -340,7 +345,7 @@ fn run_worker(app: &AppHandle, state: &AppState, rx: &Receiver<ScanEvent>, tab: 
 }
 
 /// Logs how a scan ended.
-fn log_done(scan: &Scan) {
+pub fn log_done(scan: &Scan) {
     let secs = scan.elapsed().as_secs_f64();
     let how = if scan.cancelled { "Stopped" } else { "Scanned" };
     log::info(

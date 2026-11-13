@@ -18,12 +18,23 @@ pub struct Flags {
     pub log: bool,
 }
 
+/// Headless snapshot run: `--snapshot <root>` (repeatable), `--quiet`, `--no-toast`.
+#[derive(Default, Debug, PartialEq)]
+pub struct Headless {
+    pub roots: Vec<String>,
+    /// No console output.
+    pub quiet: bool,
+    /// No toast when done.
+    pub no_toast: bool,
+}
+
 /// Parsed command line.
 #[derive(Default, Debug, PartialEq)]
 pub struct Args {
     /// One entry per tab to open; an empty entry is a start tab.
     pub tabs: Vec<String>,
     pub flags: Flags,
+    pub headless: Headless,
     theme: Option<String>,
     scale: Option<u32>,
     colors: Option<FileColors>,
@@ -51,6 +62,9 @@ impl Args {
                         .flat_map(|v| v.split(';'))
                         .map(str::to_string),
                 ),
+                "--snapshot" => out.headless.roots.extend(args.next()),
+                "--quiet" => out.headless.quiet = true,
+                "--no-toast" => out.headless.no_toast = true,
                 "--side" => out.flags.side = true,
                 "--log" => out.flags.log = true,
                 a if a.starts_with("--") => {}
@@ -101,5 +115,21 @@ mod tests {
         a.apply(&mut cfg);
         assert_eq!(cfg.ui_scale, 150);
         assert_eq!(cfg.file_colors, FileColors::Age);
+        assert!(a.headless.roots.is_empty());
+    }
+
+    #[test]
+    fn headless_switches() {
+        let a = parse(&[
+            "--snapshot",
+            r"C:\",
+            "--snapshot",
+            r"D:\x",
+            "--quiet",
+            "--no-toast",
+        ]);
+        assert_eq!(a.headless.roots, [r"C:\", r"D:\x"]);
+        assert!(a.headless.quiet && a.headless.no_toast);
+        assert!(a.tabs.is_empty());
     }
 }

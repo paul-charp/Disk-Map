@@ -41,6 +41,10 @@ const COMMANDS: &[&str] = &[
     "about",
     "open_link",
     "reveal_config",
+    "schedule_get",
+    "schedule_set",
+    "timeline",
+    "reports",
 ];
 
 fn main() {

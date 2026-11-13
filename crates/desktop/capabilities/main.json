@@ -48,6 +48,10 @@
     "allow-about",
     "allow-open-link",
     "allow-reveal-config",
+    "allow-schedule-get",
+    "allow-schedule-set",
+    "allow-timeline",
+    "allow-reports",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]
