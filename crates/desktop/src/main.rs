@@ -10,6 +10,7 @@ mod elevate;
 mod fmt;
 mod marks;
 mod paint;
+mod paths;
 mod scan;
 mod session;
 mod shell;

@@ -1,8 +1,8 @@
-//! Settings persisted in `diskmap.toml` next to the executable (or at `DISKMAP_CONFIG`).
+//! Settings persisted in `diskmap.toml` at the location chosen by `paths`.
 
+use crate::paths;
 use diskmap_core::classes::{FileClass, FileClasses};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 const MAX_RECENT: usize = 8;
 const SCALE_RANGE: (u32, u32) = (80, 200);
@@ -112,17 +112,10 @@ fn parse_hex(s: &str) -> [u8; 3] {
     [(v >> 16) as u8, (v >> 8) as u8, v as u8]
 }
 
-fn config_path() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("DISKMAP_CONFIG") {
-        return Some(PathBuf::from(p));
-    }
-    Some(std::env::current_exe().ok()?.parent()?.join("diskmap.toml"))
-}
-
 impl Config {
     /// Loads the file, falling back to defaults.
     pub fn load() -> Self {
-        let mut cfg: Config = config_path()
+        let mut cfg: Config = paths::config_path()
             .and_then(|p| std::fs::read_to_string(p).ok())
             .and_then(|s| toml::from_str(&s).ok())
             .unwrap_or_default();
@@ -132,7 +125,10 @@ impl Config {
 
     /// Writes the file; failures are ignored.
     pub fn save(&self) {
-        if let (Some(path), Ok(text)) = (config_path(), toml::to_string_pretty(self)) {
+        if let (Some(path), Ok(text)) = (paths::config_path(), toml::to_string_pretty(self)) {
+            if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+                let _ = std::fs::create_dir_all(dir);
+            }
             let _ = std::fs::write(path, text);
         }
     }
