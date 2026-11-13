@@ -25,10 +25,10 @@ Requires Windows 10 or 11 and the WebView2 runtime (part of Windows 11 and curre
 | Asset | Kind | Settings | Data (snapshots, log) |
 | --- | --- | --- | --- |
 | `diskmap-vX.Y.Z-windows-x64-setup.exe` | Installer, per user, no admin | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
-| `diskmap-vX.Y.Z-windows-x64.zip` | Portable | `diskmap.toml` next to the exe | `data\` next to the exe |
+| `diskmap-vX.Y.Z-windows-x64-portable.exe` | Portable | `diskmap.toml` next to the exe | `data\` next to the exe |
 
 - Installer: installs to `%LOCALAPPDATA%\diskmap` by default (data in its `data` subfolder), adds a Start menu shortcut and, from a checkbox on the last page, a desktop shortcut. It downloads WebView2 only if it is missing. Uninstall from Windows Settings, Apps; settings and data are kept unless "Delete the application data" is ticked.
-- Portable: unzip anywhere. The `portable` file next to `diskmap.exe` keeps everything in that folder; delete it to use the installed locations instead.
+- Portable: put the exe in any folder and run it; settings and data stay in that folder. Any copy of the exe the installer did not put in place runs portable.
 - `DISKMAP_CONFIG` overrides the settings path in both modes.
 - Updates: installed builds check at startup (Settings, About, Auto check) and show an `Update x.y.z` chip in the status bar; Install downloads the signed installer, runs it in passive mode and restarts. Portable builds only check and link to the release page. Updates stay off in builds without an updater public key; see [docs/distribution.md](docs/distribution.md).
 

@@ -23,14 +23,14 @@ Points in wave 2 depend on wave 1 branches and start after those merge.
 | `feature/compare-mode` | Snapshot compare on the map | snapshot-core |
 | `feature/periodic-scans` | Headless snapshot, scheduler, report | snapshot-core, storage-paths |
 | `feature/dashboard` | Home page dashboard | pins, periodic-scans |
-| `feature/installer` | NSIS installer next to the portable zip | storage-paths |
+| `feature/installer` | NSIS installer next to the portable build | storage-paths |
 | `feature/updater` | Auto updater | installer, about |
 | `feature/winget` | Winget manifest in the release workflow | installer |
 
 ## Storage paths
 
-- Portable: a `portable` marker file (or an existing `diskmap.toml`) next to the exe. Everything stays next to the exe.
-- Installed: settings in `%APPDATA%\diskmap\diskmap.toml`; snapshots, timeline and logs in `%LOCALAPPDATA%\diskmap\data\`.
+- Installed: the installer records its folder in `HKCU\Software\diskmap\InstallDir`; the exe in that folder keeps settings in `%APPDATA%\diskmap\diskmap.toml`; snapshots, timeline and logs in `%LOCALAPPDATA%\diskmap\data\`.
+- Portable: any other copy of the exe. Everything stays next to the exe.
 - `DISKMAP_CONFIG` still overrides the config path.
 
 ## Snapshots and timeline
@@ -94,7 +94,7 @@ Settings section with version, GitHub link, license, data folder (with Open), an
 ## Install, update, distribution
 
 - Installer: Tauri bundler, NSIS, per-user without admin, Start menu shortcut, optional desktop shortcut, uninstaller that can keep data.
-  Releases ship `diskmap-<tag>-windows-x64-setup.exe` and the portable zip with the marker.
+  Releases ship `diskmap-<tag>-windows-x64-setup.exe` and `diskmap-<tag>-windows-x64-portable.exe`.
 - Updater: `tauri-plugin-updater`, signed `latest.json` on GitHub Releases (key in a repository secret).
   Installed builds install and restart; portable builds only check and link to the release.
   Done; setup in `docs/distribution.md`.

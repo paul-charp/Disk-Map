@@ -87,7 +87,7 @@ with 0, or 1 when a root failed. `--quiet` drops console output, `--no-toast` th
 `diskmap.exe --snapshot <root>... --quiet` (see `docs/snapshots.md`). Try it with a config copy and a small folder:
 `diskmap.exe --snapshot C:\Temp --no-toast`.
 
-`DISKMAP_CONFIG` sets the config file path. Without it, a build with no `portable` file next to the exe uses `%APPDATA%\diskmap\diskmap.toml` (see `docs/architecture.md`, Storage paths). `DISKMAP_PERF` names a file that gets one layout timing line per layout.
+`DISKMAP_CONFIG` sets the config file path. Without it, an exe outside the folder the installer recorded (`HKCU\Software\diskmap\InstallDir`), such as a dev build, is portable and uses `diskmap.toml` and `data\` next to itself (see `docs/architecture.md`, Storage paths). `DISKMAP_PERF` names a file that gets one layout timing line per layout.
 
 ## MFT and elevation
 
