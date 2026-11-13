@@ -23,6 +23,7 @@ mod snapstore;
 mod state;
 mod timeline;
 mod toast;
+mod update;
 mod watch;
 
 use args::Args;
@@ -57,6 +58,7 @@ fn main() {
     }
     let startup = cfg.clone();
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(cfg))
         .on_window_event(on_window_event)
         .setup(move |app| {
@@ -113,6 +115,8 @@ fn main() {
             commands::about,
             commands::open_link,
             commands::reveal_config,
+            commands::update_check,
+            commands::update_install,
             commands::schedule_get,
             commands::schedule_set,
             commands::timeline,

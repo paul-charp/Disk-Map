@@ -33,17 +33,69 @@ jobs:
           Copy-Item target\release\diskmap.exe, LICENSE, README.md $name
           New-Item -ItemType File "$name\portable" | Out-Null
           Compress-Archive -Path $name\* -DestinationPath "$name.zip"
+      - name: Updater key
+        id: key
+        shell: pwsh
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $pub = (Get-Content crates/desktop/tauri.conf.json -Raw | ConvertFrom-Json).plugins.updater.pubkey
+          if ($env:KEY -and $pub) {
+            "sign=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "::warning::No TAURI_SIGNING_PRIVATE_KEY secret or no plugins.updater.pubkey: publishing without updater artifacts. See docs/distribution.md."
+            "sign=false" >> $env:GITHUB_OUTPUT
+          }
       - name: Installer
         working-directory: crates/desktop
-        run: cargo tauri build --bundles nsis --ci
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if ('${{ steps.key.outputs.sign }}' -eq 'true') {
+            cargo tauri build --bundles nsis --ci
+          } else {
+            cargo tauri build --bundles nsis --ci --no-sign
+          }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Rename installer
         shell: pwsh
         run: |
           $setup = @(Get-ChildItem target\release\bundle\nsis\*-setup.exe)
           if ($setup.Count -ne 1) { throw "expected one setup.exe, found $($setup.Count)" }
           Copy-Item $setup[0].FullName "diskmap-${{ github.ref_name }}-windows-x64-setup.exe"
+          if ('${{ steps.key.outputs.sign }}' -eq 'true') {
+            Copy-Item "$($setup[0].FullName).sig" "diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig"
+          }
+      - name: Updater manifest
+        if: steps.key.outputs.sign == 'true'
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = (Get-Content crates/desktop/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $pattern = '(?ms)^## ' + [regex]::Escape($version) + '[ \t]*\r?\n(.*?)(?=^## |\z)'
+          $section = [regex]::Match((Get-Content CHANGELOG.md -Raw), $pattern)
+          $notes = if ($section.Success -and $section.Groups[1].Value.Trim()) { $section.Groups[1].Value.Trim() } else { $tag }
+          $asset = "diskmap-$tag-windows-x64-setup.exe"
+          $manifest = [ordered]@{
+            version   = $version
+            notes     = $notes
+            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = (Get-Content "$asset.sig" -Raw).Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content latest.json -Encoding utf8NoBOM
+          Get-Content latest.json
       - uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             diskmap-${{ github.ref_name }}-windows-x64.zip
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe
+            diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig
+            latest.json

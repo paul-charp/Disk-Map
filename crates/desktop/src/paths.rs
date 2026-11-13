@@ -95,7 +95,6 @@ pub fn ensure_data_dir() -> std::io::Result<PathBuf> {
 }
 
 /// True when running in portable mode.
-#[allow(dead_code)] // first user: About
 pub fn is_portable() -> bool {
     paths().is_some_and(|p| p.portable)
 }

@@ -97,5 +97,6 @@ Settings section with version, GitHub link, license, data folder (with Open), an
   Releases ship `diskmap-<tag>-windows-x64-setup.exe` and the portable zip with the marker.
 - Updater: `tauri-plugin-updater`, signed `latest.json` on GitHub Releases (key in a repository secret).
   Installed builds install and restart; portable builds only check and link to the release.
+  Done; setup in `docs/distribution.md`.
 - Winget: `wingetcreate` in `release.yml` after the first installer release (user scope, nullsoft).
 - Code signing: none at first; consider SignPath for open source later.

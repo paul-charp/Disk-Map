@@ -48,6 +48,8 @@
     "allow-about",
     "allow-open-link",
     "allow-reveal-config",
+    "allow-update-check",
+    "allow-update-install",
     "allow-schedule-get",
     "allow-schedule-set",
     "allow-timeline",

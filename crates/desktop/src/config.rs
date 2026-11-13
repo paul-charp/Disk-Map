@@ -181,6 +181,8 @@ pub struct Config {
     pub backend: String,
     pub watch: bool,
     pub highlight_changes: bool,
+    /// Check for a new release at startup.
+    pub check_updates: bool,
     /// Save a snapshot after every full scan.
     pub auto_snapshot: bool,
     /// Automatic snapshots kept per scan root; manual ones are never pruned.
@@ -208,6 +210,7 @@ impl Default for Config {
             backend: "auto".into(),
             watch: false,
             highlight_changes: false,
+            check_updates: true,
             auto_snapshot: true,
             keep_snapshots: 5,
             classes: class_defs(&FileClasses::default()),

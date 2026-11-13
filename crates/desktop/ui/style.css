@@ -258,6 +258,9 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
 .alinks { display: flex; gap: 6px; }
 .alinks .btn { height: 24px; }
 .acfg { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.aupd { display: flex; align-items: center; gap: 8px; }
+.aupd .btn[hidden] { display: none; }
+.chip#st-update { color: var(--accent); border-color: var(--accent); }
 .apath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
 
 .stime { height: 24px; padding: 0 6px; background: var(--field); border: 1px solid var(--border); border-radius: 3px;

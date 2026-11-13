@@ -97,6 +97,7 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | `backend` | `auto` | `auto`, `mft`, `walk` |
 | `watch` | false | Live updates |
 | `highlight_changes` | false | Change highlight |
+| `check_updates` | true | Check for a new release at startup |
 | `auto_snapshot` | true | Save a full snapshot after every completed full scan |
 | `keep_snapshots` | 5 | Automatic snapshots kept per root (1 to 100); manual ones are never pruned |
 | `recent` | empty | Last 8 scanned paths with sizes |
