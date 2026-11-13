@@ -88,7 +88,6 @@ pub fn data_dir() -> Option<PathBuf> {
 }
 
 /// Creates the data folder if needed and returns it.
-#[allow(dead_code)] // first users: snapshots, logs
 pub fn ensure_data_dir() -> std::io::Result<PathBuf> {
     let dir = data_dir().ok_or_else(|| std::io::Error::other("no data folder"))?;
     std::fs::create_dir_all(&dir)?;

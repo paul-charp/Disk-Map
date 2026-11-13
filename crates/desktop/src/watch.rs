@@ -1,5 +1,6 @@
 //! Live updates: one file-system watcher per tab and a worker that applies its events to the tree.
 
+use crate::log;
 use crate::state::{AppState, Inner, TabId, status};
 use crossbeam_channel::{Receiver, unbounded};
 use diskmap_scan::{LiveUpdater, WatchEvent, Watcher};
@@ -151,7 +152,14 @@ fn apply(
             .get_mut(&tab)
             .filter(|s| s.epoch == epoch && s.live.as_ref().is_some_and(|l| l.id() == id));
         let Some(s) = current else { return false };
+        let was_stale = s.stale;
         s.apply_live(updater, chunk, classes);
+        if s.stale && !was_stale {
+            log::warn(
+                "watch",
+                format!("{}: changes lost, rescan due", s.scan.root_path),
+            );
+        }
     }
     let snapshot = status(&state.lock(), tab);
     let _ = app.emit("scan", snapshot);
