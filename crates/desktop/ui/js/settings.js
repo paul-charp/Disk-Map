@@ -1,5 +1,6 @@
 // Settings dialog: a modal window with a list of sections; every change applies at once.
 import { api } from './api.js';
+import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { classesSection } from './classtable.js';
 import { button, iconButton, row, segmented, stepper, swatches, toggle } from './controls.js';
@@ -30,7 +31,7 @@ export function initSettings(app) {
     Map: () => [
       row('Detail', num('detail', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], String)),
       row('Min tile', num('min_tile', [2, 3, 4, 5, 6, 8, 10, 12, 16], (v) => `${v} px`)),
-      row('Class colours', flag('class_colors')),
+      row('File colours', segmented(FILE_COLORS, app.cfg.file_colors, set('file_colors'))),
       row('Free space', flag('show_free')),
       row('Unknown space', flag('show_unknown')),
     ],

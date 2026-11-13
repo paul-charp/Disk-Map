@@ -1,6 +1,6 @@
 //! Command line: paths to open in tabs and test switches.
 
-use crate::config::Config;
+use crate::config::{Config, FileColors};
 use serde::Serialize;
 
 /// Test switches, applied by the front end to the active tab once its scan is done.
@@ -26,6 +26,7 @@ pub struct Args {
     pub flags: Flags,
     theme: Option<String>,
     scale: Option<u32>,
+    colors: Option<FileColors>,
 }
 
 impl Args {
@@ -43,6 +44,7 @@ impl Args {
                 "--settings" => out.flags.settings = args.next(),
                 "--theme" => out.theme = args.next(),
                 "--scale" => out.scale = args.next().and_then(|v| v.parse().ok()),
+                "--colour" => out.colors = args.next().and_then(|v| FileColors::parse(&v)),
                 "--tabs" => out.tabs.extend(
                     args.next()
                         .iter()
@@ -71,6 +73,9 @@ impl Args {
         if let Some(scale) = self.scale {
             cfg.ui_scale = scale;
         }
+        if let Some(colors) = self.colors {
+            cfg.file_colors = colors;
+        }
         cfg.sanitize();
     }
 }
@@ -87,6 +92,7 @@ mod tests {
     fn paths_and_switches() {
         let a = parse(&[
             r"C:\a", "--select", r"x\y", "--tabs", r"D:\;", "--side", "--log", "--scale", "150",
+            "--colour", "age",
         ]);
         assert_eq!(a.tabs, [r"C:\a", r"D:\", ""]);
         assert_eq!(a.flags.select.as_deref(), Some(r"x\y"));
@@ -94,5 +100,6 @@ mod tests {
         let mut cfg = Config::default();
         a.apply(&mut cfg);
         assert_eq!(cfg.ui_scale, 150);
+        assert_eq!(cfg.file_colors, FileColors::Age);
     }
 }

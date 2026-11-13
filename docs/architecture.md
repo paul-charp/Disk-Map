@@ -39,8 +39,8 @@ PaintList decode -> Painter (offscreen canvas) -> MapView canvas + hover and hig
 
 - Header, 4 values: item count, label blob bytes, view root node id, layout time in microseconds.
 - Items, 8 values each: `x, y, w, h, node, meta, parent index, highlight`.
-  - `meta = depth | class << 8 | flags << 16`; class 255 means none.
-  - Flags: file 1, dir 2, drilled 4, free 8, unknown 16, selected 32, bold 64, label 128. The tag (0 to 4) is stored in the flag bits from bit 8.
+  - `meta = depth | class << 8 | flags << 16`; class 255 means none. With the age flag the class byte is an age bucket (`diskmap_core::age`, 0 is under a week).
+  - Flags: file 1, dir 2, drilled 4, free 8, unknown 16, selected 32, bold 64, label 128, age 2048. The tag (0 to 4) is stored in the flag bits from bit 8.
   - `highlight = weight << 16 | warning << 15 | age in ms`; 0 when there is none.
 - Label blob: UTF-8 labels joined by `\n`, one per item flagged label, in item order. A label is `name`, byte 0x01, size text.
 - Item 0 is the view root and lies outside the drawn area. Node ids -1 and -2 are the free and unknown space items.
@@ -86,7 +86,8 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | --- | --- | --- |
 | `theme` | `graphite` | `graphite`, `paper`, `dusk`, `ember`, `violet` |
 | `detail` | 3 | Nesting levels for new tabs, 1 to 12 |
-| `class_colors`, `show_free`, `show_unknown` | false, true, true | Defaults for new tabs |
+| `file_colors` | `accent` | File tile colours for new tabs: `accent`, `class` or `age`; reads the former `class_colors` flag |
+| `show_free`, `show_unknown` | true, true | Defaults for new tabs |
 | `show_side` | false | Side panel |
 | `ui_scale` | 100 | Webview zoom in percent, 80 to 200 |
 | `map_text` | `medium` | `small`, `medium`, `large` |

@@ -9,6 +9,7 @@
 - Pinned folders: Pinned section on the start screen, pin buttons on recent rows, Pin and Unpin in the map context menu.
 - Context menu: Open in terminal, Properties, Scan in new tab and Recycle (with confirm).
 - Export of the view, the selection, top files and top folders as CSV or JSON (toolbar Export menu, context menu), honouring the filter and the detail level.
+- File colour mode Accent, Class or Age: age colours files by modification time with a ramp per theme, an Age legend in the side panel and the `--colour` test switch. Replaces the class colour toggle; `class_colors` in old configs is still read.
 
 ## 0.1.0
 

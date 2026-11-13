@@ -1,10 +1,18 @@
 // Toolbar row: navigation, breadcrumb and view toggles.
+import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { setIcon } from './icons.js';
 import { openMenu } from './menu.js';
 
-const TOGGLES = { 'b-classes': 'class_colors', 'b-free': 'show_free', 'b-unknown': 'show_unknown' };
-const KIND = { 'b-classes': 'classes', 'b-free': 'free', 'b-unknown': 'unknown' };
+const TOGGLES = { 'b-free': 'show_free', 'b-unknown': 'show_unknown' };
+const KIND = { 'b-free': 'free', 'b-unknown': 'unknown' };
+
+/** Menu of the file colour modes under the colours button. */
+function colorsMenu(app) {
+  const r = $('b-colors').getBoundingClientRect();
+  const items = FILE_COLORS.map(([mode, label]) => ({ label, on: app.status.file_colors === mode, run: () => app.setFileColors(mode) }));
+  openMenu(items, r.left, r.bottom + 2);
+}
 
 /** Wires the toolbar; returns `update(status)`. */
 export function initToolbar(app) {
@@ -21,6 +29,7 @@ export function initToolbar(app) {
   $('b-about').onclick = () => app.parts.settings.open('About');
   $('b-export').onclick = (e) => exportMenu(app, e.currentTarget);
   for (const id of Object.keys(TOGGLES)) $(id).onclick = () => app.toggle(KIND[id]);
+  $('b-colors').onclick = () => colorsMenu(app);
   $('b-watch').onclick = () => app.toggle('watch');
   return (st) => update(app, st);
 }
@@ -53,10 +62,21 @@ function update(app, st) {
   setIcon($('b-scan'), st.running ? 'stop' : 'rescan');
   $('b-scan').title = st.running ? 'Stop (F5)' : 'Rescan (F5)';
   for (const [id, key] of Object.entries(TOGGLES)) $(id).classList.toggle('on', !!st[key]);
+  updateColors(st.file_colors ?? 'accent');
   $('b-watch').classList.toggle('on', app.cfg.watch);
   $('b-side').classList.toggle('on', app.cfg.show_side);
   $('viewsize').textContent = st.view_size ?? '';
   renderCrumbs(app, st.crumbs ?? []);
+}
+
+function updateColors(mode) {
+  const b = $('b-colors');
+  if (b.dataset.mode === mode) return;
+  b.dataset.mode = mode;
+  b.classList.toggle('on', mode !== 'accent');
+  setIcon(b, mode === 'age' ? 'clock' : 'palette');
+  const label = FILE_COLORS.find(([m]) => m === mode)?.[1] ?? '';
+  b.title = `Colours: ${label} (Ctrl+T)`;
 }
 
 function renderCrumbs(app, crumbs) {

@@ -170,6 +170,7 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
   border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, .35); }
 .menu button { display: flex; width: 100%; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; text-align: left; }
 .menu button:hover { background: var(--hover); }
+.menu button.on { color: var(--accent); }
 .menu .tags { display: flex; gap: 6px; padding: 6px 8px; }
 .menu .tags .dot { cursor: default; }
 .menu hr { border: 0; border-top: 1px solid var(--border); margin: 3px 0; }

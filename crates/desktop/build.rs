@@ -20,6 +20,7 @@ const COMMANDS: &[&str] = &[
     "set_filter",
     "set_detail",
     "set_toggle",
+    "set_file_colors",
     "details",
     "stats",
     "find_node",

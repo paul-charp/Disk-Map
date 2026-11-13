@@ -2,7 +2,7 @@
 
 use crate::appearance;
 use crate::args::{Args, Flags};
-use crate::config::{ClassDef, Config, class_defs, hex};
+use crate::config::{ClassDef, Config, FileColors, class_defs, hex};
 use crate::elevate;
 use crate::fmt;
 use crate::log;
@@ -14,6 +14,7 @@ use crate::state::{
     AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
 use crate::watch;
+use diskmap_core::age::age_bucket;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
 use diskmap_core::export::{self, Format, Row, Source};
 use diskmap_core::log::Level;
@@ -217,6 +218,7 @@ pub async fn layout(
         height,
         dpr,
         highlight: g.cfg.highlight_changes,
+        now: fmt::filetime_now(),
     };
     Ok(tauri::ipc::Response::new(paint::build(s, &cx)))
 }
@@ -318,7 +320,17 @@ pub async fn set_detail(state: State<'_, AppState>, tab: TabId, detail: u32) -> 
     with_session(&state, tab, |s| s.view.detail = detail.clamp(1, 12))
 }
 
-/// Flips one of the view toggles of a tab: `classes`, `free` or `unknown`.
+/// Sets how the file tiles of a tab are coloured.
+#[tauri::command]
+pub async fn set_file_colors(
+    state: State<'_, AppState>,
+    tab: TabId,
+    mode: FileColors,
+) -> Res<Status> {
+    with_session(&state, tab, |s| s.view.file_colors = mode)
+}
+
+/// Flips one of the view toggles of a tab: `free` or `unknown`.
 #[tauri::command]
 pub async fn set_toggle(
     state: State<'_, AppState>,
@@ -329,7 +341,6 @@ pub async fn set_toggle(
     let mut g = state.lock();
     let s = g.sessions.get_mut(&tab).ok_or(NO_SESSION)?;
     match kind.as_str() {
-        "classes" => s.view.class_colors = on,
         "free" => s.view.show_free = on,
         "unknown" => s.view.show_unknown = on,
         _ => return Err(format!("Unknown toggle {kind}").into()),
@@ -352,6 +363,8 @@ pub struct Details {
     accessed: String,
     items: Option<u32>,
     class: String,
+    /// Age bucket of a file, most recent 0.
+    age: Option<u8>,
     tag: u8,
     pinned: bool,
 }
@@ -413,6 +426,7 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
         accessed: fmt::date_time(times.atime),
         items: (!is_file).then(|| n.child_count()),
         class,
+        age: is_file.then(|| age_bucket(times.mtime, fmt::filetime_now())),
         tag: s.tags.raw(id),
     })
 }
@@ -441,6 +455,15 @@ pub struct StatsOut {
     files: Vec<Top>,
     folders: Vec<Top>,
     classes: Vec<ClassRow>,
+    /// Bytes per age bucket, most recent first.
+    ages: Vec<AgeRow>,
+}
+
+/// Bytes of one age bucket.
+#[derive(Serialize)]
+pub struct AgeRow {
+    size: String,
+    share: f32,
 }
 
 fn tops(s: &Session, list: &[(NodeId, u64)]) -> Vec<Top> {
@@ -466,6 +489,14 @@ pub async fn stats(state: State<'_, AppState>, tab: TabId) -> Res<StatsOut> {
     let st = s.stats(&classes);
     let (files, folders, per_class) = (st.files.clone(), st.folders.clone(), st.classes.clone());
     let total: u64 = per_class.iter().sum::<u64>().max(1);
+    let ages = st
+        .ages
+        .iter()
+        .map(|&bytes| AgeRow {
+            size: fmt::size(bytes),
+            share: bytes as f32 / total as f32,
+        })
+        .collect();
     let mut rows: Vec<ClassRow> = per_class
         .iter()
         .enumerate()
@@ -489,6 +520,7 @@ pub async fn stats(state: State<'_, AppState>, tab: TabId) -> Res<StatsOut> {
         files: tops(s, &files),
         folders: tops(s, &folders),
         classes: rows,
+        ages,
     })
 }
 

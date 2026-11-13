@@ -24,6 +24,46 @@ pub enum BackendPref {
     Walk,
 }
 
+/// How file tiles are coloured.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FileColors {
+    /// The theme's file colour.
+    #[default]
+    Accent,
+    /// The colour of the file class.
+    Class,
+    /// A ramp by modification time.
+    Age,
+}
+
+impl FileColors {
+    /// Parses `accent`, `class` or `age`.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "accent" => Some(FileColors::Accent),
+            "class" => Some(FileColors::Class),
+            "age" => Some(FileColors::Age),
+            _ => None,
+        }
+    }
+}
+
+/// Reads a colour mode, or the former `class_colors` flag.
+fn file_colors_compat<'de, D: serde::Deserializer<'de>>(d: D) -> Result<FileColors, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Value {
+        Flag(bool),
+        Mode(FileColors),
+    }
+    Ok(match Value::deserialize(d)? {
+        Value::Flag(true) => FileColors::Class,
+        Value::Flag(false) => FileColors::Accent,
+        Value::Mode(m) => m,
+    })
+}
+
 /// A previously scanned path with the size found.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Recent {
@@ -50,7 +90,8 @@ pub struct Config {
     pub pins: Vec<String>,
     /// Defaults for new tabs.
     pub detail: u32,
-    pub class_colors: bool,
+    #[serde(alias = "class_colors", deserialize_with = "file_colors_compat")]
+    pub file_colors: FileColors,
     pub show_free: bool,
     pub show_unknown: bool,
     pub show_side: bool,
@@ -77,7 +118,7 @@ impl Default for Config {
             recent: Vec::new(),
             pins: Vec::new(),
             detail: 3,
-            class_colors: false,
+            file_colors: FileColors::Accent,
             show_free: true,
             show_unknown: true,
             show_side: false,
@@ -366,6 +407,16 @@ mod tests {
         cfg.backend = "turbo".into();
         cfg.sanitize();
         assert_eq!(cfg.backend_pref(), BackendPref::Auto);
+    }
+
+    #[test]
+    fn file_colors_read_old_flag() {
+        let cfg: Config = toml::from_str("class_colors = true").expect("old flag");
+        assert_eq!(cfg.file_colors, FileColors::Class);
+        let cfg: Config = toml::from_str("file_colors = \"age\"").expect("mode");
+        assert_eq!(cfg.file_colors, FileColors::Age);
+        let text = toml::to_string(&cfg).expect("save");
+        assert!(text.contains("file_colors = \"age\""));
     }
 
     #[test]
