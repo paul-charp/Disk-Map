@@ -4,7 +4,7 @@
 
 | Crate | Role |
 | --- | --- |
-| `crates/core` (`diskmap-core`) | Arena `Tree`, squarified layout, filter grammar and evaluation, colour tags, file classes. No I/O. |
+| `crates/core` (`diskmap-core`) | Arena `Tree`, squarified layout, filter grammar and evaluation, colour tags, file classes, snapshot and timeline formats, diff (`docs/snapshots.md`). No I/O. |
 | `crates/scan` (`diskmap-scan`) | Walk and MFT scan backends, `TreeBuilder`, `ReadDirectoryChangesW` watcher, `LiveUpdater`, volume and drive info. Windows only. |
 | `crates/bench` (`diskmap-bench`) | Command line tool: `scan`, `compare`, `watch`. |
 | `crates/desktop` (`diskmap`) | Tauri 2 app: sessions, config, paint list encoder, commands. Front end in `ui/`. |
