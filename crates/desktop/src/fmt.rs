@@ -42,6 +42,16 @@ pub fn percent(part: u64, total: u64) -> String {
     }
 }
 
+/// Signed size change: `+1.2 GB`, `-512 MB`, `0 B`.
+pub fn delta(bytes: i64) -> String {
+    let sign = match bytes.signum() {
+        1 => "+",
+        -1 => "-",
+        _ => "",
+    };
+    format!("{sign}{}", size(bytes.unsigned_abs()))
+}
+
 /// Current time as a Windows FILETIME.
 pub fn filetime_now() -> i64 {
     let secs = std::time::SystemTime::now()
@@ -84,6 +94,8 @@ mod tests {
         assert_eq!(size(512 * 1024 * 1024), "512 MB");
         assert_eq!(size(41_011_000_000), "38.2 GB");
         assert_eq!(size(2_089_000_000_000), "1.9 TB");
+        assert_eq!(delta(-512 * 1024 * 1024), "-512 MB");
+        assert_eq!(delta(0), "0 B");
     }
 
     #[test]

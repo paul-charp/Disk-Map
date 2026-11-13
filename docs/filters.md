@@ -122,3 +122,20 @@ Separators: `+` and `,` include, `-` excludes. A file matches when it has at lea
 | `\|:class:Audio` | Everything except audio |
 
 A class condition is a selector, so `:class:Video;:class:Audio` matches either class.
+
+## Compare
+
+Only in compare mode (a tab compared against a snapshot); outside it these conditions match nothing. Sizes are allocated sizes.
+
+`is:` followed by `new`, `grown`, `shrunk`, `same` or `deleted`. Several `is:` conditions match any of them; `|is:` excludes. No current file is deleted: `is:deleted` keeps the Deleted ghost items on the map (they are not filtered by other conditions).
+
+`delta:` followed by `>` or `<` and a signed size; a new file counts with its full size.
+
+| Filter | Matches |
+| --- | --- |
+| `is:new` | Files not in the snapshot |
+| `is:new;is:grown` | New or larger files |
+| `\|is:same` | Every changed file |
+| `delta:>1GB` | Grown by more than 1 GB |
+| `delta:<-100MB` | Shrunk by more than 100 MB |
+| `is:deleted` | Only the Deleted items |

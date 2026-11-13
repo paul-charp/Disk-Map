@@ -48,6 +48,10 @@
     "allow-about",
     "allow-open-link",
     "allow-reveal-config",
+    "allow-snapshots",
+    "allow-save-snapshot",
+    "allow-delete-snapshot",
+    "allow-compare",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

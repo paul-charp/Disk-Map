@@ -67,7 +67,8 @@ export function initSide(app) {
     }
     acts.append(el('span', 'grow'), iconButton('folder', 'Reveal', () => app.reveal(d.id)), iconButton('copy', 'Copy path', () => copyText(d.path)));
     const last = d.kind === 'file' ? ['Class', d.class] : ['Items', d.items?.toLocaleString()];
-    s.append(name, parent, kv([['Size', d.size], ['On disk', d.disk], ['Share', d.share], ['Modified', d.modified], last]), acts);
+    const change = d.change ? `${d.delta} · ${d.change}` : '';
+    s.append(name, parent, kv([['Size', d.size], ['On disk', d.disk], ['Before', d.old], ['Change', change], ['Share', d.share], ['Modified', d.modified], last]), acts);
     return s;
   };
 
@@ -92,6 +93,28 @@ export function initSide(app) {
     return s;
   };
 
+  let showShrunk = false;
+  const changes = (ch) => {
+    const seg = el('span', 'seg');
+    for (const [label, on] of [['Grown', !showShrunk], ['Shrunk', showShrunk]]) {
+      const b = el('button', on ? 'on' : '', label);
+      b.onclick = () => {
+        showShrunk = label === 'Shrunk';
+        render();
+      };
+      seg.append(b);
+    }
+    const s = section('CHANGES', seg);
+    for (const c of showShrunk ? ch.shrinkers : ch.growers) {
+      const row = el('div', 'li');
+      row.title = `${c.parent ? `${c.parent}\\` : ''}${c.name} · ${c.change}`;
+      row.append(el('span', 'n', c.name), el('span', 'v', c.delta));
+      if (c.id != null) row.onclick = () => app.select(c.id);
+      s.append(row);
+    }
+    return s;
+  };
+
   const shares = (title, rows) => {
     const s = section(title);
     for (const c of rows.filter((c) => c.share > 0)) {
@@ -111,7 +134,9 @@ export function initSide(app) {
   let data = null;
   const render = () => {
     if (!data) return;
-    const parts = [selection(data.sel), largest(data.stats)];
+    const parts = [selection(data.sel)];
+    if (data.stats.changes) parts.push(changes(data.stats.changes));
+    parts.push(largest(data.stats));
     if (app.status.file_colors === 'age') parts.push(ages(data.stats));
     root.replaceChildren(...parts, shares('CLASSES', data.stats.classes));
   };

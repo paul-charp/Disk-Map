@@ -21,7 +21,7 @@ impl Rect {
 
 /// Layout settings.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LayoutParams {
+pub struct LayoutParams<'a> {
     /// Levels of nesting drawn below the layout root.
     pub max_depth: u32,
     /// Folders at least this wide and tall keep expanding past `max_depth`; 0 disables.
@@ -40,6 +40,8 @@ pub struct LayoutParams {
     pub free: u64,
     /// Size of the unknown-space pseudo-item placed among the root's children, when above 0.
     pub unknown: u64,
+    /// Deleted bytes per folder, by node id: a deleted pseudo-item of that size is placed among its children.
+    pub deleted: &'a [u64],
 }
 
 /// What a layout item stands for.
@@ -48,6 +50,8 @@ pub enum ItemKind {
     Node(NodeId),
     Free,
     Unknown,
+    /// Bytes deleted directly in a folder, in compare mode.
+    Deleted(NodeId),
 }
 
 /// A laid-out rectangle.
@@ -89,6 +93,7 @@ fn fits(r: Rect, params: &LayoutParams) -> bool {
 fn sort_key(kind: ItemKind) -> u64 {
     match kind {
         ItemKind::Node(id) => u64::from(id.0),
+        ItemKind::Deleted(_) => u64::MAX - 2,
         ItemKind::Free => u64::MAX - 1,
         ItemKind::Unknown => u64::MAX,
     }
@@ -203,6 +208,10 @@ pub enum Sizes<'a> {
     Allocated,
     /// One size per node, indexed by node id; nodes past the end count as empty.
     Slice(&'a [u64]),
+    /// Allocated bytes plus an extra amount per node, e.g. deleted bytes in compare mode.
+    Plus(&'a [u64]),
+    /// [`Sizes::Slice`] plus an extra amount per node.
+    SlicePlus(&'a [u64], &'a [u64]),
 }
 
 impl Sizes<'_> {
@@ -210,9 +219,15 @@ impl Sizes<'_> {
     pub fn get(&self, tree: &Tree, id: NodeId) -> u64 {
         match self {
             Sizes::Allocated => tree.get(id).allocated,
-            Sizes::Slice(s) => s.get(id.0 as usize).copied().unwrap_or(0),
+            Sizes::Slice(s) => at(s, id),
+            Sizes::Plus(extra) => tree.get(id).allocated + at(extra, id),
+            Sizes::SlicePlus(s, extra) => at(s, id) + at(extra, id),
         }
     }
+}
+
+fn at(values: &[u64], id: NodeId) -> u64 {
+    values.get(id.0 as usize).copied().unwrap_or(0)
 }
 
 /// Lays out the subtree under `root` inside `bounds`; `out` is in paint order.
@@ -251,6 +266,14 @@ pub fn layout(
                     kind: ItemKind::Node(child),
                 });
             }
+        }
+        if let Some(&d) = params.deleted.get(frame.node.0 as usize)
+            && d > 0
+        {
+            entries.push(Entry {
+                size: d,
+                kind: ItemKind::Deleted(frame.node),
+            });
         }
         if frame.depth == 0 {
             if params.free > 0 {
@@ -377,7 +400,7 @@ mod tests {
             && inner.y + inner.h <= outer.y + outer.h + eps
     }
 
-    fn flat_params() -> LayoutParams {
+    fn flat_params() -> LayoutParams<'static> {
         LayoutParams {
             max_depth: 8,
             ..LayoutParams::default()
@@ -598,6 +621,31 @@ mod tests {
     }
 
     #[test]
+    fn deleted_items_sit_in_their_folder() {
+        let (t, a, _) = sample();
+        let mut deleted = vec![0u64; t.len()];
+        deleted[a.0 as usize] = 3000;
+        let mut extra = vec![0u64; t.len()];
+        extra[a.0 as usize] = 3000;
+        extra[0] = 3000;
+        let params = LayoutParams {
+            deleted: &deleted,
+            ..flat_params()
+        };
+        let mut out = Vec::new();
+        layout(&t, Sizes::Plus(&extra), t.root(), BOUNDS, &params, &mut out);
+        let ghosts: Vec<_> = out
+            .iter()
+            .filter(|i| i.kind == ItemKind::Deleted(a))
+            .collect();
+        assert_eq!(ghosts.len(), 1);
+        assert_eq!(ghosts[0].depth, 2);
+        let total = (Sizes::Plus(&extra)).get(&t, t.root()) as f64;
+        let expected = area(&BOUNDS) * 3000.0 / total;
+        assert!((area(&ghosts[0].rect) - expected).abs() <= expected * 1e-3);
+    }
+
+    #[test]
     fn free_and_unknown_only_at_root() {
         let (t, _, _) = sample();
         let sizes = allocated(&t);
@@ -697,6 +745,7 @@ mod tests {
                 gap: 1.0,
                 free: 5000,
                 unknown: 3000,
+                deleted: &[],
             };
             let bounds = Rect {
                 x: 0.0,

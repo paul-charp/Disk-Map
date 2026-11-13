@@ -110,6 +110,7 @@ export class Painter {
   /** Base colour of an item. */
   color(list, i) {
     const f = list.flags(i);
+    if (f & F.DELTA && !(f & F.DRILLED)) return this.scheme.delta(list.cls(i), list.depth(i));
     if (f & F.FREE) return this.scheme.free;
     if (f & F.UNKNOWN) return this.scheme.unknown;
     const d = list.depth(i);
@@ -133,7 +134,7 @@ export class Painter {
   /** Item indices grouped by depth, then fill colour, in paint order; fills items that need decoration into `marked`. */
   #batches(list, marked) {
     const groups = new Map();
-    const bare = F.LABEL | F.UNKNOWN | F.SELECTED | (7 << 8);
+    const bare = F.LABEL | F.UNKNOWN | F.DELETED | F.SELECTED | (7 << 8);
     for (let i = 1; i < list.n; i++) {
       const c = this.color(list, i);
       const key = list.depth(i) * 16777216 + ((c[0] << 16) | (c[1] << 8) | c[2]);
@@ -218,7 +219,7 @@ export class Painter {
     const f = list.flags(i);
     const panel = f & F.DRILLED;
     const r = this.#radius(list, i);
-    if (f & F.UNKNOWN) this.#hatch(ctx, [x, y, w, h], r, this.scheme.text(fill));
+    if (f & (F.UNKNOWN | F.DELETED)) this.#hatch(ctx, [x, y, w, h], r, this.scheme.text(fill));
     const label = list.label(i);
     if (label) {
       const color = f & F.SELECTED && panel ? css(this.scheme.accent) : this.scheme.text(fill);

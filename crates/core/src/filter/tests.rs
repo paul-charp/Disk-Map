@@ -183,6 +183,7 @@ fn run(f: &Fixture, text: &str) -> (Vec<&'static str>, Filtered) {
         tags: &f.tags,
         classes: &f.classes,
         now: NOW,
+        compare: None,
     };
     let res = filter.apply(&f.tree, &ctx);
     let matched: Vec<_> = FILES
@@ -219,6 +220,7 @@ fn void_filter_matches_everything() {
             tags: &f.tags,
             classes: &f.classes,
             now: NOW,
+            compare: None,
         };
         let res = filter.apply(&f.tree, &ctx);
         assert_eq!(res.matched_files, 8);
@@ -357,4 +359,57 @@ fn wildcard_matcher() {
     assert!(wildcard_match("*abc", "ababc"));
     assert!(wildcard_match("été*", "ÉTÉ.txt"));
     assert!(!wildcard_match("abc", "abcd"));
+}
+
+/// Old side for compare filters: big.iso was 1 GB, c.mp3 6 MB, a.jpg did not exist.
+fn old_side(f: &Fixture) -> Tree {
+    let mut old = f.tree.clone();
+    let t = Times::default();
+    old.set_file(f.ids["big.iso"], GB, GB, t, 0x20);
+    old.set_file(f.ids["c.mp3"], 6 * MB, 6 * MB, t, 0x20);
+    old.remove(f.ids["a.jpg"]);
+    old
+}
+
+fn run_compare(text: &str) -> Vec<&'static str> {
+    let f = fixture();
+    let old = old_side(&f);
+    let cmp = crate::compare::Compare::new(&old, &f.tree);
+    let filter = Filter::parse(text, &f.classes).unwrap_or_else(|e| panic!("{text}: {e}"));
+    let ctx = FilterCtx {
+        tags: &f.tags,
+        classes: &f.classes,
+        now: NOW,
+        compare: Some(&cmp),
+    };
+    let res = filter.apply(&f.tree, &ctx);
+    FILES
+        .iter()
+        .copied()
+        .filter(|n| res.sizes[f.ids[n].0 as usize] > 0)
+        .collect()
+}
+
+#[test]
+fn compare_conditions() {
+    assert_eq!(run_compare("is:new"), ["a.jpg"]);
+    assert_eq!(run_compare("is:grown"), ["big.iso"]);
+    assert_eq!(run_compare("is:shrunk"), ["c.mp3"]);
+    assert_eq!(run_compare("is:new;is:grown"), ["a.jpg", "big.iso"]);
+    assert_eq!(run_compare("|is:same"), ["a.jpg", "c.mp3", "big.iso"]);
+    assert_eq!(run_compare("delta:>1mb"), ["a.jpg", "big.iso"]);
+    assert_eq!(run_compare("delta:<-512KB"), ["c.mp3"]);
+    assert!(run_compare("is:deleted").is_empty());
+    let f = fixture();
+    let parsed = Filter::parse("is:deleted", &f.classes).unwrap();
+    assert!(parsed.shows_deleted() && parsed.uses_compare() && !parsed.is_void());
+}
+
+#[test]
+fn compare_conditions_match_nothing_outside_compare_mode() {
+    check("is:new", &[]);
+    check("delta:>0b", &[]);
+    let classes = FileClasses::default();
+    assert!(Filter::parse("is:bogus", &classes).is_err());
+    assert!(Filter::parse("delta:1gb", &classes).is_err());
 }
