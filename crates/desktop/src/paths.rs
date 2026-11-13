@@ -83,7 +83,6 @@ pub fn config_path() -> Option<PathBuf> {
 }
 
 /// Folder for snapshots, timeline and logs. Not created until [`ensure_data_dir`].
-#[allow(dead_code)] // first users: snapshots, logs
 pub fn data_dir() -> Option<PathBuf> {
     paths().map(|p| p.data.clone())
 }
