@@ -12,6 +12,7 @@
 - File colour mode Accent, Class or Age: age colours files by modification time with a ramp per theme, an Age legend in the side panel and the `--colour` test switch. Replaces the class colour toggle; `class_colors` in old configs is still read.
 - NSIS installer `diskmap-<tag>-windows-x64-setup.exe` next to the portable zip: per-user install without admin, Start menu shortcut, optional desktop shortcut, uninstaller that keeps settings and data unless asked to delete them. CI builds it on `release/*` branches and on manual runs.
 - Updater (`tauri-plugin-updater`): startup check (`check_updates`, Settings, About, Auto check), Check now button, `Update x.y.z` status bar chip; installed builds install in passive mode and restart, portable builds link to the release. Releases ship a signed `latest.json` and `.sig` when the signing secrets are set; updates are off while `plugins.updater.pubkey` is empty (`docs/distribution.md`).
+- Winget package `PaulCharp.Diskmap`: manifest templates in `winget/manifests/`, a Release job that fills them (artifact `winget-manifests`) and submits stable versions with `wingetcreate` when `WINGET_TOKEN` is set; setup in `docs/distribution.md`.
 
 ## 0.1.0
 

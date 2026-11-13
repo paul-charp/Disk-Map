@@ -99,4 +99,5 @@ Settings section with version, GitHub link, license, data folder (with Open), an
   Installed builds install and restart; portable builds only check and link to the release.
   Done; setup in `docs/distribution.md`.
 - Winget: `wingetcreate` in `release.yml` after the first installer release (user scope, nullsoft).
+  Done: `PaulCharp.Diskmap`, templates in `winget/manifests/`; first submission by hand (`docs/distribution.md`).
 - Code signing: none at first; consider SignPath for open source later.
