@@ -12,6 +12,8 @@ pub struct Flags {
     pub tooltip: Option<String>,
     pub detail: Option<u32>,
     pub side: bool,
+    /// Snapshot to compare against: `latest` or a path.
+    pub compare: Option<String>,
     /// Settings section to open at startup.
     pub settings: Option<String>,
     /// Show the Output panel at startup.
@@ -40,6 +42,7 @@ impl Args {
                 "--zoom" => out.flags.zoom = args.next(),
                 "--hover" => out.flags.hover = args.next(),
                 "--tooltip" => out.flags.tooltip = args.next(),
+                "--compare" => out.flags.compare = args.next(),
                 "--detail" => out.flags.detail = args.next().and_then(|v| v.parse().ok()),
                 "--settings" => out.flags.settings = args.next(),
                 "--theme" => out.theme = args.next(),
@@ -91,12 +94,24 @@ mod tests {
     #[test]
     fn paths_and_switches() {
         let a = parse(&[
-            r"C:\a", "--select", r"x\y", "--tabs", r"D:\;", "--side", "--log", "--scale", "150",
-            "--colour", "age",
+            r"C:\a",
+            "--select",
+            r"x\y",
+            "--tabs",
+            r"D:\;",
+            "--side",
+            "--log",
+            "--scale",
+            "150",
+            "--colour",
+            "age",
+            "--compare",
+            "latest",
         ]);
         assert_eq!(a.tabs, [r"C:\a", r"D:\", ""]);
         assert_eq!(a.flags.select.as_deref(), Some(r"x\y"));
         assert!(a.flags.side && a.flags.log);
+        assert_eq!(a.flags.compare.as_deref(), Some("latest"));
         let mut cfg = Config::default();
         a.apply(&mut cfg);
         assert_eq!(cfg.ui_scale, 150);

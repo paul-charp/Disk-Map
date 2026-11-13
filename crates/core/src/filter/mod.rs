@@ -7,6 +7,12 @@ mod tests;
 
 use std::fmt;
 
+use crate::diff::Status;
+
+fn status_bit(status: Status) -> u8 {
+    1 << status as u8
+}
+
 pub use eval::{FilterCtx, Filtered, wildcard_match};
 
 /// Error for one condition of a filter string.
@@ -67,6 +73,13 @@ struct SizeCond {
 }
 
 #[derive(Clone, Copy, Debug)]
+struct DeltaCond {
+    cmp: Cmp,
+    bytes: i64,
+    negated: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
 enum TimeKind {
     Creation,
     Modify,
@@ -90,6 +103,10 @@ pub struct Filter {
     sizes: Vec<SizeCond>,
     ages: Vec<AgeCond>,
     attrs: Vec<AttrCond>,
+    /// Compare statuses (bits of [`status_bit`]) a file must have one of, or must not have.
+    status_include: u8,
+    status_exclude: u8,
+    deltas: Vec<DeltaCond>,
     folders: Vec<String>,
     positive_folders: u64,
     negative_folders: u64,
@@ -115,6 +132,17 @@ impl Filter {
             && self.ages.is_empty()
             && self.attrs.is_empty()
             && self.folders.is_empty()
+            && !self.uses_compare()
+    }
+
+    /// True if the result depends on compare mode.
+    pub fn uses_compare(&self) -> bool {
+        self.status_include != 0 || self.status_exclude != 0 || !self.deltas.is_empty()
+    }
+
+    /// True if deleted items are wanted (`is:deleted`).
+    pub fn shows_deleted(&self) -> bool {
+        self.status_include & status_bit(Status::Deleted) != 0
     }
 
     /// True if the result depends on tags.

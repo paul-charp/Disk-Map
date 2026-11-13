@@ -46,6 +46,10 @@ export const api = {
   about: () => invoke('about'),
   openLink: (link) => invoke('open_link', { link }),
   revealConfig: () => invoke('reveal_config'),
+  snapshots: (tab) => invoke('snapshots', { tab }),
+  saveSnapshot: (tab) => invoke('save_snapshot', { tab }),
+  deleteSnapshot: (path) => invoke('delete_snapshot', { path }),
+  compare: (tab, path) => invoke('compare', { tab, path }),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));

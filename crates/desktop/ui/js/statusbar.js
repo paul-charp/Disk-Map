@@ -24,6 +24,7 @@ function elide(text, max, font) {
 export function initStatus(app) {
   $('st-elevate').onclick = () => api.elevate(app.tab.id);
   $('st-stale').onclick = () => app.toggleScan();
+  $('st-compare').onclick = () => app.compare(null);
   const path = $('st-path');
   let full = '';
   const draw = () => {
@@ -77,5 +78,8 @@ function update(st) {
   elevate.hidden = !st.can_elevate;
   elevate.title = st.backend_tip ?? '';
   $('st-stale').hidden = !st.stale;
+  const cmp = $('st-compare');
+  cmp.hidden = !st.compare;
+  cmp.textContent = st.compare ? `vs ${st.compare.date}` : '';
   $('st-pct').textContent = st.volume ? `${st.volume.percent}% of ${st.volume.root.replace(/\\$/, '')}` : '';
 }

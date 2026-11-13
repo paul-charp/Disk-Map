@@ -11,6 +11,7 @@ const SCALE_RANGE: (u32, u32) = (80, 200);
 const MIN_TILE_RANGE: (u32, u32) = (2, 16);
 const MAX_THREADS: u32 = 64;
 const TEXT_SIZES: [&str; 3] = ["small", "medium", "large"];
+const MAX_KEEP: u32 = 100;
 const BACKENDS: [&str; 3] = ["auto", "mft", "walk"];
 
 /// Which scan backend a scan should use.
@@ -108,6 +109,10 @@ pub struct Config {
     pub backend: String,
     pub watch: bool,
     pub highlight_changes: bool,
+    /// Save a snapshot after every full scan.
+    pub auto_snapshot: bool,
+    /// Automatic snapshots kept per scan root; manual ones are never pruned.
+    pub keep_snapshots: u32,
     pub classes: Vec<ClassDef>,
 }
 
@@ -130,6 +135,8 @@ impl Default for Config {
             backend: "auto".into(),
             watch: false,
             highlight_changes: false,
+            auto_snapshot: true,
+            keep_snapshots: 5,
             classes: class_defs(&FileClasses::default()),
         }
     }
@@ -209,6 +216,7 @@ impl Config {
         self.ui_scale = self.ui_scale.clamp(SCALE_RANGE.0, SCALE_RANGE.1);
         self.min_tile = self.min_tile.clamp(MIN_TILE_RANGE.0, MIN_TILE_RANGE.1);
         self.threads = self.threads.min(MAX_THREADS);
+        self.keep_snapshots = self.keep_snapshots.clamp(1, MAX_KEEP);
         if !TEXT_SIZES.contains(&self.map_text.as_str()) {
             self.map_text = "medium".into();
         }
