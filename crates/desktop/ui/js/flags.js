@@ -4,11 +4,12 @@ import { api } from './api.js';
 const SETTLE_MS = 600;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** `latest` is the newest snapshot not taken by this scan. */
-async function compareTo(app, tab, which) {
+/** Compares `tab` against a snapshot path or `latest`, the newest snapshot not taken by this scan; false when there is none. */
+export async function compareTo(app, tab, which) {
   const list = await api.snapshots(tab.id).catch(() => []);
   const path = which === 'latest' ? list.find((s) => !s.this_scan)?.path : which;
-  if (path) await app.compare(path);
+  if (path) await app.compare(path, tab);
+  return !!path;
 }
 
 /** Applies the switches once the scan of `tab` is done. */

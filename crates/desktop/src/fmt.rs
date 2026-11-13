@@ -58,12 +58,16 @@ pub fn delta(bytes: i64) -> String {
     format!("{sign}{}", size(bytes.unsigned_abs()))
 }
 
+/// Current time in Unix seconds.
+pub fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
+}
+
 /// Current time as a Windows FILETIME.
 pub fn filetime_now() -> i64 {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64);
-    (secs + FILETIME_UNIX_SECS) * 10_000_000
+    (unix_now() + FILETIME_UNIX_SECS) * 10_000_000
 }
 
 /// `YYYY-MM-DD HH:MM` (UTC) of a FILETIME, empty for zero.

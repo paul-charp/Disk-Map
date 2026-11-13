@@ -47,6 +47,7 @@ const COMMANDS: &[&str] = &[
     "schedule_set",
     "timeline",
     "reports",
+    "dashboard",
     "snapshots",
     "save_snapshot",
     "delete_snapshot",

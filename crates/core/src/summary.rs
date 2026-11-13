@@ -143,6 +143,28 @@ impl Summary {
         out
     }
 
+    /// Reads the scan time and root totals only: the header and the first entry, so a prefix of the file is enough.
+    pub fn read_root(buf: &[u8]) -> Result<(i64, SummaryEntry), Error> {
+        let mut r = Reader::open(buf, MAGIC, VERSION)?;
+        let scan_time = r.i64()?;
+        r.u64()?;
+        r.u64()?;
+        r.str()?;
+        if r.u64()? == 0 {
+            return Err(Error::Invalid("no root entry"));
+        }
+        let root = SummaryEntry {
+            path: String::new(),
+            parent: None,
+            depth: 0,
+            allocated: r.u64()?,
+            logical: r.u64()?,
+            files: r.u64()?,
+            dirs: r.u64()?,
+        };
+        Ok((scan_time, root))
+    }
+
     /// Decodes a point written by [`Summary::encode`].
     pub fn decode(buf: &[u8]) -> Result<Self, Error> {
         let mut r = Reader::open(buf, MAGIC, VERSION)?;
@@ -243,6 +265,16 @@ mod tests {
 
     fn paths(s: &Summary) -> Vec<&str> {
         s.entries.iter().map(|e| e.path.as_str()).collect()
+    }
+
+    #[test]
+    fn reads_root_from_a_prefix() {
+        let s = Summary::from_tree(&tree(), 42, SummaryOptions::default());
+        let bytes = s.encode();
+        let prefix = 16 + s.root_path.len() + 4 * 10;
+        let (time, root) = Summary::read_root(&bytes[..prefix.min(bytes.len())]).unwrap();
+        assert_eq!(time, 42);
+        assert_eq!(&root, s.root());
     }
 
     #[test]

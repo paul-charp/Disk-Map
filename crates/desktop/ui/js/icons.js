@@ -31,6 +31,9 @@ const PATHS = {
   warning: 'M8 2.2 14.2 13H1.8zM8 6.5v3M8 11.3h.01',
   compare: 'M4.5 2.5v5M2 5h5M2 11.5h5M10 2.5v11M12 4.5h2M12 11.5h2M12 8h2',
   pin: 'M5.5 2.5h5M6.5 2.5v4L4 9.5h8L9.5 6.5v-4M8 9.5v4',
+  chart: 'M2.5 2.5v11h11M4.5 10.5l3-3.5 2 1.5 4-4.5',
+  chevron: 'M6 3.5 10.5 8 6 12.5',
+  shield: 'M8 1.8 13 3.8v4c0 3-2.1 5.2-5 6.4-2.9-1.2-5-3.4-5-6.4v-4z',
 };
 
 /** Fills every `svg[data-icon]` and replaces `button[data-icon]` content with its icon. */

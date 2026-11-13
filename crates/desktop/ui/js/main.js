@@ -142,6 +142,7 @@ async function openStartTabs(boot) {
   let pending = last >= 0 ? { index: last, flags: boot.flags } : null;
   await onScan((st) => {
     if (app.setStatus(st) && st.tab === app.tab.id) app.map.request();
+    app.scanEvent(st);
     const tab = app.tabs[pending?.index];
     if (tab?.id === st.tab && st.active && !st.running) {
       const { flags } = pending;

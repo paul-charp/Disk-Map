@@ -56,7 +56,7 @@ The installer is written to `target\release\bundle\nsis\diskmap_<version>_x64-se
 
 ## Usage
 
-- Start screen: type a path (several separated by `;`), pick a drive or a recent scan, or browse. Folders dropped on the window open in tabs. Paths on the command line open one tab each.
+- Start screen: type a path (several separated by `;`), pick a drive or a recent scan, or browse. A dashboard shows drive usage with history, a trend chart, the latest movers and the schedule state. Folders dropped on the window open in tabs. Paths on the command line open one tab each.
 - Click a folder or file to select it; the map digs in place to show its contents.
 - Double click a folder to zoom to it. Back and Forward step through zooms only; Up and Root zoom out.
 - Right click for Open, Reveal, Copy path, tags and Zoom.

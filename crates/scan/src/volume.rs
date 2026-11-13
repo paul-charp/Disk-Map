@@ -92,6 +92,8 @@ pub struct DriveInfo {
     /// Drive root, e.g. `C:\`.
     pub root: String,
     pub label: String,
+    /// File system name, e.g. `NTFS`; empty when unknown.
+    pub file_system: String,
     pub kind: DriveKind,
     pub total_bytes: u64,
     pub free_bytes: u64,
@@ -106,24 +108,30 @@ fn drive_kind(code: u32) -> DriveKind {
     }
 }
 
-fn volume_label(wroot: &[u16]) -> String {
-    let mut buf = [0u16; 261];
-    // SAFETY: wroot is NUL-terminated and buf is a valid writable slice.
+fn from_wide(buf: &[u16]) -> String {
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    String::from_utf16_lossy(&buf[..len])
+}
+
+/// Volume label and file system name, empty when the volume cannot be queried.
+fn volume_names(wroot: &[u16]) -> (String, String) {
+    let mut label = [0u16; 261];
+    let mut fs = [0u16; 64];
+    // SAFETY: wroot is NUL-terminated and both buffers are valid writable slices.
     let ok = unsafe {
         GetVolumeInformationW(
             PCWSTR(wroot.as_ptr()),
-            Some(&mut buf),
+            Some(&mut label),
             None,
             None,
             None,
-            None,
+            Some(&mut fs),
         )
     };
     if ok.is_err() {
-        return String::new();
+        return (String::new(), String::new());
     }
-    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-    String::from_utf16_lossy(&buf[..len])
+    (from_wide(&label), from_wide(&fs))
 }
 
 fn drive_info(letter: char) -> Option<DriveInfo> {
@@ -142,13 +150,23 @@ fn drive_info(letter: char) -> Option<DriveInfo> {
         )
     }
     .ok()?;
+    let (label, file_system) = volume_names(&wroot);
     Some(DriveInfo {
-        label: volume_label(&wroot),
+        label,
+        file_system,
         root,
         kind,
         total_bytes: total,
         free_bytes: free,
     })
+}
+
+impl DriveInfo {
+    /// Whether the MFT backend can read this drive when elevated: a local fixed or removable NTFS volume.
+    pub fn mft_capable(&self) -> bool {
+        matches!(self.kind, DriveKind::Fixed | DriveKind::Removable)
+            && self.file_system.eq_ignore_ascii_case("NTFS")
+    }
 }
 
 /// Lists the mounted drives; drives that cannot be queried are skipped.

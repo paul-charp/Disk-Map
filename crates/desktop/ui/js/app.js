@@ -91,8 +91,22 @@ app.exportTo = async (scope, format, node = null) => {
   }
 };
 
-/** Compares the tab against a snapshot path, or leaves compare mode with null; errors go to the status bar. */
-app.compare = (path) => app.act(api.compare(app.tab.id, path)).catch((e) => app.parts.statusbar.flash(String(e)));
+/** Compares a tab against a snapshot path, or leaves compare mode with null; errors go to the status bar. */
+app.compare = (path, tab = app.tab) => app.act(api.compare(tab.id, path)).catch((e) => app.parts.statusbar.flash(String(e)));
+
+/** Callbacks run once when the scan of a tab ends, by tab id. */
+const scanHooks = new Map();
+
+/** Runs `fn` once when the next scan of `tab` ends. */
+app.afterScan = (tab, fn) => scanHooks.set(tab.id, fn);
+
+/** Runs the hook of a tab whose scan just ended. */
+app.scanEvent = (st) => {
+  const fn = scanHooks.get(st.tab);
+  if (!fn || !st.active || st.running) return;
+  scanHooks.delete(st.tab);
+  fn();
+};
 
 /** Saves a kept snapshot of the tab now. */
 app.saveSnapshot = () =>
@@ -233,6 +247,7 @@ app.closeTab = async (id) => {
   const i = app.tabs.findIndex((t) => t.id === id);
   if (i < 0) return;
   const [tab] = app.tabs.splice(i, 1);
+  scanHooks.delete(id);
   api.closeTab(id);
   app.map.forget(id);
   if (!app.tabs.length) return app.newTab();
@@ -264,6 +279,7 @@ app.scan = async (tab, path) => {
     app.setStatus(st);
     app.map.refresh();
   } catch (e) {
+    scanHooks.delete(tab.id);
     tab.startError = String(e);
     if (tab === app.tab) app.parts.start.error(tab.startError);
   }

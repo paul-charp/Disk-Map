@@ -773,7 +773,7 @@ fn path_row(cfg: &Config, path: &str, size: u64, pinned: bool) -> RecentRow {
     }
 }
 
-fn kind_name(kind: DriveKind) -> &'static str {
+pub fn kind_name(kind: DriveKind) -> &'static str {
     match kind {
         DriveKind::Fixed => "Fixed",
         DriveKind::Removable => "Removable",
@@ -1138,20 +1138,20 @@ pub async fn schedule_set(state: State<'_, AppState>, schedule: Schedule) -> Res
 #[derive(Serialize)]
 pub struct TimelinePoint {
     /// Unix seconds, UTC.
-    time: i64,
-    allocated: u64,
-    logical: u64,
-    files: u64,
+    pub time: i64,
+    pub allocated: u64,
+    pub logical: u64,
+    pub files: u64,
 }
 
-fn timeline_points(root: &str) -> Vec<TimelinePoint> {
+/// Root totals of every timeline point of a root, oldest first; unreadable points are skipped.
+pub fn timeline_points(root: &str) -> Vec<TimelinePoint> {
     timeline::list(root)
         .into_iter()
         .filter_map(|p| {
-            let s = timeline::load(&p.path)
+            let r = timeline::load_root(&p.path)
                 .map_err(|e| log::warn("timeline", e))
                 .ok()?;
-            let r = s.root();
             Some(TimelinePoint {
                 time: p.time,
                 allocated: r.allocated,

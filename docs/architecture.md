@@ -54,6 +54,18 @@ PaintList decode -> Painter (offscreen canvas) -> MapView canvas + hover and hig
 - Each scan gets an increasing epoch. `Status.ver` is the sum of the scan, filter and tag versions. The front end drops a snapshot older than the one it holds.
 - Rescan starts a new session in the same tab and carries the view options, filter, view root and selection (as names below the scan root), restoring them when the scan ends. Rescan view scans the view root alone and replaces that subtree.
 - Closing a tab drops its session, which cancels the scan and stops the watcher.
+- `app.afterScan(tab, fn)` runs `fn` once when the next scan of that tab ends (scan events with `active` and not `running`). The dashboard uses it for Compare.
+
+## Start screen
+
+The start tab is a dashboard (`ui/js/start.js`, drawings in `ui/js/chart.js`), filled by one `dashboard` command (`crates/desktop/src/dashboard.rs`):
+
+- Drives: label, file system, MFT capability (local fixed or removable NTFS), total and free bytes, and the root totals of every timeline point. Points are read with `Summary::read_root` from the first 4 KB of each file.
+- Pins and recent scans with size, last scan time (the recent entry's `time` or the newest point) and the change between the last two points.
+- The last 10 report lines, each with whether its root has a snapshot.
+- The schedule settings and whether the process is elevated. Whether the task exists comes from a background `schedule_get`.
+
+Drive cards show a used bar, the 7 and 30 day change (newest point against the newest one at least that old) and an SVG sparkline; the Trend chart is a canvas scaled by `devicePixelRatio` and redrawn on resize and theme change. Movers open a new tab on a root or a mover; Compare scans the root, compares with the newest snapshot not taken by that scan and zooms to the mover. Status slots: update available, next scheduled run (or Schedule off, Task missing), Elevate or Admin. Up and down colours are the `--up` and `--down` theme variables.
 
 ## Filter evaluation
 

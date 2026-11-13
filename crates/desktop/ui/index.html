@@ -54,7 +54,8 @@
 
       <div id="start" hidden>
         <div class="col">
-          <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+          <div class="dhead">
+            <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#25272C"/>
   <rect x="7" y="12" width="50" height="40" rx="6" fill="#3A3F4B"/>
   <rect x="12" y="17" width="22" height="21" rx="2" fill="#4C9AFF"/>
@@ -63,23 +64,46 @@
   <rect x="12" y="43" width="22" height="4" rx="2" fill="#59606D"/>
   <circle cx="49" cy="45" r="2.5" fill="#2CB5A0"/>
 </svg>
-          <div class="pick">
-            <input id="start-path" type="text" placeholder="Path" spellcheck="false" autocomplete="off">
-            <button class="btn" id="start-browse">Browse</button>
-            <button class="btn primary" id="start-go">Scan</button>
+            <div class="pick">
+              <input id="start-path" type="text" placeholder="Path" spellcheck="false" autocomplete="off">
+              <button class="btn" id="start-browse">Browse</button>
+              <button class="btn primary" id="start-go">Scan</button>
+            </div>
+            <div id="start-slots"></div>
           </div>
           <div id="start-err"></div>
           <h2>DRIVES</h2>
           <div id="start-drives"></div>
-          <div id="start-pinned" hidden>
-            <h2>PINNED</h2>
-            <div id="start-pins"></div>
+          <div class="dgrid">
+            <div class="dcol">
+              <section id="start-trend">
+                <div class="shead">
+                  <h2>TREND</h2>
+                  <span id="trend-read" class="mono muted"></span>
+                  <span class="grow"></span>
+                  <span id="trend-pick" class="seg"></span>
+                </div>
+                <canvas id="trend"></canvas>
+                <div id="trend-empty" class="empty" hidden></div>
+              </section>
+              <section>
+                <h2>MOVERS</h2>
+                <div id="start-movers"></div>
+              </section>
+            </div>
+            <div class="dcol">
+              <section id="start-pinned" hidden>
+                <h2>PINNED</h2>
+                <div id="start-pins"></div>
+              </section>
+              <section>
+                <h2>RECENT</h2>
+                <div id="start-recent"></div>
+              </section>
+            </div>
           </div>
-          <h2>RECENT</h2>
-          <div id="start-recent"></div>
         </div>
       </div>
-    </div>
     <div id="output" hidden>
       <div id="out-sash"></div>
       <div class="phead">
