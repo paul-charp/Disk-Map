@@ -6,6 +6,7 @@
 - Core snapshot format, timeline points and tree diff with top movers (`docs/snapshots.md`).
 - Output panel (Ctrl+`) with the application log: command, scan, watcher, config and script errors, level filter, Copy, Clear; error and warning counts in the status bar; mirrored to `diskmap.log` next to the config file (1 MB, rotated to `.1`); test switch `--log`.
 - About section in Settings (version, license, GitHub and Issues links, config path with Reveal, build), opened from an info button in the toolbar.
+- Pinned folders: Pinned section on the start screen, pin buttons on recent rows, Pin and Unpin in the map context menu.
 
 ## 0.1.0
 

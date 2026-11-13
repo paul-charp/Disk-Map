@@ -87,6 +87,7 @@ fn main() {
             commands::open_node,
             commands::reveal_node,
             commands::start_info,
+            commands::set_pin,
             commands::browse,
             commands::elevate,
             commands::log_perf,

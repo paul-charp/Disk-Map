@@ -30,6 +30,7 @@ export const api = {
   open: (tab, node) => invoke('open_node', { tab, node }),
   reveal: (tab, node) => invoke('reveal_node', { tab, node }),
   startInfo: () => invoke('start_info'),
+  setPin: (path, on) => invoke('set_pin', { path, on }),
   browse: () => invoke('browse'),
   elevate: (tab) => invoke('elevate', { tab }),
   perf: (line) => invoke('log_perf', { line }),

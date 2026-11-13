@@ -27,6 +27,7 @@ const PATHS = {
   folder: 'M2 4.5h4l1.2 1.5H14v6.5H2z',
   error: 'M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM6 6l4 4M10 6l-4 4',
   warning: 'M8 2.2 14.2 13H1.8zM8 6.5v3M8 11.3h.01',
+  pin: 'M5.5 2.5h5M6.5 2.5v4L4 9.5h8L9.5 6.5v-4M8 9.5v4',
 };
 
 /** Fills every `svg[data-icon]` and replaces `button[data-icon]` content with its icon. */

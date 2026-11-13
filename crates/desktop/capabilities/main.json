@@ -33,6 +33,7 @@
     "allow-open-node",
     "allow-reveal-node",
     "allow-start-info",
+    "allow-set-pin",
     "allow-browse",
     "allow-elevate",
     "allow-log-perf",
