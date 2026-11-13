@@ -7,7 +7,7 @@ diskmap: Windows disk-usage treemap. Rust workspace, Tauri 2 desktop app, plain 
 - `crates/core`: tree, squarified layout, filter grammar (`src/filter`), tags, file classes. No I/O.
 - `crates/scan`: walk backend (`walk.rs`), MFT backend (`mft.rs`, `mft/record.rs`), watcher (`watch.rs`), live updater (`live.rs`), volume info.
 - `crates/bench`: `diskmap-bench` CLI (`scan`, `compare`, `watch`). Development tool only: excluded from `default-members`, so plain `cargo build` skips it; build it with `-p diskmap-bench` when needed; never ship it in release archives.
-- `crates/desktop`: the app (binary `diskmap`). Backend in `src/` (`commands.rs` Tauri commands, `session.rs`, `state.rs`, `paint.rs`, `config.rs`, `watch.rs`). Front end in `ui/` (`index.html`, `style.css`, `js/*.js`, no build step). `build.rs` lists the commands; a new command goes in `build.rs`, `main.rs` and `ui/js/api.js`.
+- `crates/desktop`: the app (binary `diskmap`). Backend in `src/` (`commands.rs` Tauri commands, `session.rs`, `state.rs`, `paint.rs`, `config.rs`, `watch.rs`). Front end in `ui/` (`index.html`, `style.css`, `js/*.js`, no build step). `build.rs` lists the commands; a new command goes in `build.rs`, `main.rs` and `ui/js/api.js`. `windows/hooks.nsh`: NSIS installer hooks.
 - `assets/icon/`: icon source and renders; `crates/desktop/icons/` holds copies.
 - `tools/shots/`: window capture scripts. `docs/`: architecture, scanning, filters, branching.
 - `.local/` holds local working files (e.g. `.local/space_sniffer/`, a third-party reference app). Do not read `space_sniffer`, edit it or commit anything in `.local/`.
@@ -19,6 +19,13 @@ cargo build --release -p diskmap
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+```
+
+Installer (NSIS, needs the Tauri CLI: `cargo install tauri-cli --version "^2" --locked`):
+
+```powershell
+cd crates\desktop
+cargo tauri build --bundles nsis   # target\release\bundle\nsis\diskmap_<version>_x64-setup.exe
 ```
 
 If `target\release\diskmap.exe` is locked by a running app, add `--target-dir target\tauri` to cargo commands.

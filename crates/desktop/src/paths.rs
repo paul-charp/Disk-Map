@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 const CONFIG_FILE: &str = "diskmap.toml";
 const MARKER_FILE: &str = "portable";
 const APP_DIR: &str = "diskmap";
-const PORTABLE_DATA_DIR: &str = "data";
+const DATA_DIR: &str = "data";
 
 /// Resolved locations, decided once at startup.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,9 +49,10 @@ pub fn portable_dir(exe_dir: &Path, exists: impl Fn(&Path) -> bool) -> bool {
 /// Decides the mode and the paths. Falls back to portable when the profile folders are unknown.
 pub fn resolve(env: &Env, exists: impl Fn(&Path) -> bool) -> Paths {
     let installed = match (&env.appdata, &env.local_appdata) {
-        (Some(roaming), Some(local)) if !portable_dir(&env.exe_dir, exists) => {
-            Some((roaming.join(APP_DIR).join(CONFIG_FILE), local.join(APP_DIR)))
-        }
+        (Some(roaming), Some(local)) if !portable_dir(&env.exe_dir, exists) => Some((
+            roaming.join(APP_DIR).join(CONFIG_FILE),
+            local.join(APP_DIR).join(DATA_DIR),
+        )),
         _ => None,
     };
     let (portable, config, data) = match installed {
@@ -59,7 +60,7 @@ pub fn resolve(env: &Env, exists: impl Fn(&Path) -> bool) -> Paths {
         None => (
             true,
             env.exe_dir.join(CONFIG_FILE),
-            env.exe_dir.join(PORTABLE_DATA_DIR),
+            env.exe_dir.join(DATA_DIR),
         ),
     };
     Paths {
@@ -125,7 +126,7 @@ mod tests {
             p.config,
             Path::new("roaming").join("diskmap").join("diskmap.toml")
         );
-        assert_eq!(p.data, Path::new("local").join("diskmap"));
+        assert_eq!(p.data, Path::new("local").join("diskmap").join("data"));
     }
 
     #[test]
@@ -148,7 +149,7 @@ mod tests {
         let p = resolve(&e, |_| false);
         assert!(!p.portable);
         assert_eq!(p.config, PathBuf::from("x.toml"));
-        assert_eq!(p.data, Path::new("local").join("diskmap"));
+        assert_eq!(p.data, Path::new("local").join("diskmap").join("data"));
     }
 
     #[test]
