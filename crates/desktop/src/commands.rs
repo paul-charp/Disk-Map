@@ -13,6 +13,7 @@ use crate::shell;
 use crate::state::{
     AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
+use crate::update::{self, UpdateInfo};
 use crate::watch;
 use diskmap_core::age::age_bucket;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
@@ -883,6 +884,7 @@ pub struct About {
     config: String,
     target: String,
     profile: &'static str,
+    portable: bool,
 }
 
 /// Version, license, configuration path and build of this binary.
@@ -901,16 +903,18 @@ pub async fn about() -> Res<About> {
         } else {
             "release"
         },
+        portable: paths::is_portable(),
     })
 }
 
-/// Opens a project page in the default browser: `repo` or `issues`.
+/// Opens a project page in the default browser: `repo`, `issues` or `release` (the latest release).
 #[tauri::command]
 pub async fn open_link(link: String) -> Res<()> {
     let repo = env!("CARGO_PKG_REPOSITORY");
     let url = match link.as_str() {
         "repo" => repo.to_string(),
         "issues" => format!("{repo}/issues"),
+        "release" => format!("{repo}/releases/latest"),
         _ => return Err(format!("Unknown link: {link}").into()),
     };
     shell::open(&url);
@@ -927,4 +931,16 @@ pub async fn reveal_config() -> Res<()> {
         shell::open(&dir.to_string_lossy());
     }
     Ok(())
+}
+
+/// Checks the release endpoint for a newer version; a failure is a `failed` state, not an error.
+#[tauri::command]
+pub async fn update_check(app: AppHandle) -> Res<UpdateInfo> {
+    Ok(update::check(&app).await)
+}
+
+/// Downloads and installs the available update, then restarts. Installed builds only.
+#[tauri::command]
+pub async fn update_install(app: AppHandle) -> Res<()> {
+    Ok(update::install(&app).await?)
 }

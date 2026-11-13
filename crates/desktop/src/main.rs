@@ -16,6 +16,7 @@ mod scan;
 mod session;
 mod shell;
 mod state;
+mod update;
 mod watch;
 
 use args::Args;
@@ -46,6 +47,7 @@ fn main() {
     Args::from_env().apply(&mut cfg);
     let startup = cfg.clone();
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(cfg))
         .on_window_event(on_window_event)
         .setup(move |app| {
@@ -102,6 +104,8 @@ fn main() {
             commands::about,
             commands::open_link,
             commands::reveal_config,
+            commands::update_check,
+            commands::update_install,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

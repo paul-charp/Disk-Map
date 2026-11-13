@@ -46,6 +46,8 @@ export const api = {
   about: () => invoke('about'),
   openLink: (link) => invoke('open_link', { link }),
   revealConfig: () => invoke('reveal_config'),
+  updateCheck: () => invoke('update_check'),
+  updateInstall: () => invoke('update_install'),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));

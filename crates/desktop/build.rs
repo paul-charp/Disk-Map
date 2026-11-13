@@ -41,6 +41,8 @@ const COMMANDS: &[&str] = &[
     "about",
     "open_link",
     "reveal_config",
+    "update_check",
+    "update_install",
 ];
 
 fn main() {

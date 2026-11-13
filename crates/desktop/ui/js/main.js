@@ -17,6 +17,7 @@ import { initTabbar } from './tabbar.js';
 import { applyTheme } from './themes.js';
 import { initToolbar } from './toolbar.js';
 import { initTooltip } from './tooltip.js';
+import { initUpdate } from './update.js';
 
 const HOVER_PATH_MS = 60;
 
@@ -130,6 +131,7 @@ async function main() {
   await openStartTabs(boot);
   await showWhenPainted();
   loadDrives();
+  app.parts.update = initUpdate(app);
   if (boot.flags.log) app.parts.output.show();
   if (boot.flags.settings) app.parts.settings.open(boot.flags.settings);
 }

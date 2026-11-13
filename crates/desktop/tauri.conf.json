@@ -30,7 +30,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "publisher": "paul-charp",
     "copyright": "Copyright (c) 2026 paul-charp",
     "homepage": "https://github.com/paul-charp/Disk-Map",
@@ -52,6 +52,18 @@
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "installerHooks": "windows/hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "requireSignedVersion": true,
+      "endpoints": [
+        "https://github.com/paul-charp/Disk-Map/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

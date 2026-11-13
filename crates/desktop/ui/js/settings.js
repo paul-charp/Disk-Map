@@ -43,7 +43,7 @@ export function initSettings(app) {
     ],
     Classes: () => [classesSection(app)],
     Keys: () => [keyList()],
-    About: () => aboutSection(),
+    About: () => aboutSection(app),
   };
 
   const keyList = () => {
@@ -109,7 +109,7 @@ export function initSettings(app) {
 let aboutInfo = null;
 
 /** Name, version, license, links, config path and build of the app. */
-function aboutSection() {
+function aboutSection(app) {
   const logo = document.querySelector('#start .logo')?.cloneNode(true);
   const name = el('span', 'aname', 'diskmap');
   const version = el('span', 'mono muted');
@@ -129,11 +129,18 @@ function aboutSection() {
     license.textContent = `${a.license} License`;
     path.textContent = a.config || '—';
     path.title = a.config;
-    build.textContent = `${a.target} · ${a.profile}`;
+    build.textContent = `${a.target} · ${a.profile} · ${a.portable ? 'portable' : 'installed'}`;
   }).catch(() => {
     aboutInfo = null;
   });
-  return [head, row('License', license), row('Links', links), row('Config', config), row('Build', build)];
+  return [
+    head,
+    row('License', license),
+    row('Links', links),
+    row('Config', config),
+    row('Build', build),
+    ...(app.parts.update?.rows() ?? []),
+  ];
 }
 
 function onKey(e, api, nav, win) {

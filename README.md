@@ -30,6 +30,7 @@ Requires Windows 10 or 11 and the WebView2 runtime (part of Windows 11 and curre
 - Installer: installs to `%LOCALAPPDATA%\diskmap` by default (data in its `data` subfolder), adds a Start menu shortcut and, from a checkbox on the last page, a desktop shortcut. It downloads WebView2 only if it is missing. Uninstall from Windows Settings, Apps; settings and data are kept unless "Delete the application data" is ticked.
 - Portable: unzip anywhere. The `portable` file next to `diskmap.exe` keeps everything in that folder; delete it to use the installed locations instead.
 - `DISKMAP_CONFIG` overrides the settings path in both modes.
+- Updates: installed builds check at startup (Settings, About, Auto check) and show an `Update x.y.z` chip in the status bar; Install downloads the signed installer, runs it in passive mode and restarts. Portable builds only check and link to the release page. Updates stay off in builds without an updater public key; see [docs/distribution.md](docs/distribution.md).
 
 Release downloads contain `diskmap.exe` only; `diskmap-bench` is a development tool built from source.
 
@@ -46,8 +47,10 @@ The executable is `target\release\diskmap.exe`. The installer needs the Tauri CL
 ```powershell
 cargo install tauri-cli --version "^2" --locked
 cd crates\desktop
-cargo tauri build --bundles nsis
+cargo tauri build --bundles nsis --no-sign
 ```
+
+`--no-sign` skips the updater signature; without it the build needs `TAURI_SIGNING_PRIVATE_KEY` once a public key is configured (see [docs/distribution.md](docs/distribution.md)).
 
 The installer is written to `target\release\bundle\nsis\diskmap_<version>_x64-setup.exe`.
 

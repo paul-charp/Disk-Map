@@ -108,6 +108,8 @@ pub struct Config {
     pub backend: String,
     pub watch: bool,
     pub highlight_changes: bool,
+    /// Check for a new release at startup.
+    pub check_updates: bool,
     pub classes: Vec<ClassDef>,
 }
 
@@ -130,6 +132,7 @@ impl Default for Config {
             backend: "auto".into(),
             watch: false,
             highlight_changes: false,
+            check_updates: true,
             classes: class_defs(&FileClasses::default()),
         }
     }
