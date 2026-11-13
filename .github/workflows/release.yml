@@ -99,3 +99,44 @@ jobs:
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig
             latest.json
+
+  winget:
+    needs: release
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}
+      SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/diskmap-${{ github.ref_name }}-windows-x64-setup.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifests
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          Invoke-WebRequest $env:SETUP_URL -OutFile setup.exe
+          $sha = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+          $dir = "winget-out\$version"
+          New-Item -ItemType Directory $dir | Out-Null
+          $date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+          foreach ($f in Get-ChildItem winget\manifests\*.yaml) {
+            $text = ((Get-Content $f | Where-Object { $_ -notlike '# Template*' }) -join "`n") + "`n"
+            $text = $text.Replace('${VERSION}', $version).Replace('${TAG}', $env:TAG)
+            $text = $text.Replace('${DATE}', $date).Replace('${SHA256}', $sha)
+            Set-Content "$dir\$($f.Name)" $text -Encoding utf8NoBOM -NoNewline
+          }
+          Get-ChildItem $dir
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winget-manifests
+          path: winget-out
+          if-no-files-found: error
+      - name: Submit
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if ($env:TAG.Contains('-')) { "::notice::Pre-release $($env:TAG): winget submission skipped."; exit 0 }
+          if (-not $env:WINGET_TOKEN) { "::notice::No WINGET_TOKEN secret: winget submission skipped. See docs/distribution.md."; exit 0 }
+          $version = $env:TAG.TrimStart('v')
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update PaulCharp.Diskmap --version $version --urls $env:SETUP_URL --submit --token $env:WINGET_TOKEN
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

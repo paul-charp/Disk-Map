@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.10.0.schema.json
+# Template: the Release workflow fills ${VERSION}, ${TAG}, ${DATE} and ${SHA256} (docs/distribution.md).
+PackageIdentifier: PaulCharp.Diskmap
+PackageVersion: ${VERSION}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.10.0

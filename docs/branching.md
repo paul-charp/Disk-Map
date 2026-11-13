@@ -29,7 +29,8 @@ Semantic versioning. The version lives in two places, keep them equal:
 4. Merge into `main`, tag `vx.y.0` on `main` and push the tag. The Release workflow builds and publishes two assets:
    `diskmap-vx.y.0-windows-x64.zip` (portable, with the `portable` marker) and `diskmap-vx.y.0-windows-x64-setup.exe` (NSIS
    installer). Keep these names: winget and the updater depend on them. With the signing secrets set it also publishes
-   the installer's `.sig` and `latest.json` for the updater; see [distribution.md](distribution.md).
+   the installer's `.sig` and `latest.json` for the updater. The `winget` job then submits the new version to winget-pkgs
+   (stable tags, with `WINGET_TOKEN`); see [distribution.md](distribution.md).
 5. Merge `main` back into `develop` and delete the release branch.
 
 ## Hotfix

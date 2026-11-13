@@ -20,7 +20,7 @@ Navigation inspired by SpaceSniffer.
 
 ## Install
 
-Requires Windows 10 or 11 and the WebView2 runtime (part of Windows 11 and current Windows 10). Each [release](https://github.com/paul-charp/Disk-Map/releases) has two downloads:
+Requires Windows 10 or 11 and the WebView2 runtime (part of Windows 11 and current Windows 10). Each [release](https://github.com/paul-charp/Disk-Map/releases) has two downloads; the installer is also on winget once the package is accepted (`winget install PaulCharp.Diskmap`):
 
 | Asset | Kind | Settings | Data (snapshots, log) |
 | --- | --- | --- | --- |
@@ -117,7 +117,7 @@ The front end in `crates/desktop/ui` is plain HTML, CSS and ES modules; there is
 
 ## Contributing
 
-Work happens on `develop` and `feature/*` branches; `main` holds releases. See [docs/branching.md](docs/branching.md).
+Work happens on `develop` and `feature/*` branches; `main` holds releases. See [docs/branching.md](docs/branching.md); release assets, updater keys and winget in [docs/distribution.md](docs/distribution.md).
 
 ## Licence
 
