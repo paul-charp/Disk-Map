@@ -2,21 +2,25 @@
 
 use crate::appearance;
 use crate::args::{Args, Flags};
-use crate::config::{ClassDef, Config, FileColors, class_defs, hex};
+use crate::compare::under;
+use crate::config::{ClassDef, Config, FileColors, Schedule, class_defs, hex, same_path};
 use crate::elevate;
 use crate::fmt;
 use crate::log;
-use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
+use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID, deleted_folder};
 use crate::paths;
+use crate::scheduler;
 use crate::session::{Session, find_by_names};
 use crate::shell;
 use crate::state::{
     AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
+use crate::timeline;
 use crate::update::{self, UpdateInfo};
 use crate::watch;
 use diskmap_core::age::age_bucket;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
+use diskmap_core::diff::{DiffEntry, Status as DeltaStatus};
 use diskmap_core::export::{self, Format, Row, Source};
 use diskmap_core::log::Level;
 use diskmap_core::tags::Tag;
@@ -26,7 +30,8 @@ use serde::Serialize;
 use std::io::Write;
 use tauri::{AppHandle, State, WebviewWindow};
 
-type Res<T> = Result<T, CmdError>;
+/// Result of a command.
+pub type Res<T> = Result<T, CmdError>;
 
 /// Error of a command, sent to the front end as its text. Creating one logs it.
 #[derive(Debug)]
@@ -52,7 +57,7 @@ impl From<&str> for CmdError {
 }
 
 /// An error that is expected in normal use and not logged, such as a call racing a closed tab.
-struct Quiet(&'static str);
+pub struct Quiet(&'static str);
 
 impl From<Quiet> for CmdError {
     fn from(q: Quiet) -> Self {
@@ -60,7 +65,8 @@ impl From<Quiet> for CmdError {
     }
 }
 
-const NO_SESSION: Quiet = Quiet("No scan");
+/// Error of a command on a tab without a scan.
+pub const NO_SESSION: Quiet = Quiet("No scan");
 
 /// Name and colour of a file class.
 #[derive(Serialize)]
@@ -209,16 +215,23 @@ pub async fn layout(
     height: u32,
     dpr: f32,
 ) -> Res<tauri::ipc::Response> {
-    let g = state.lock();
-    let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+    let mut g = state.lock();
+    let Inner {
+        sessions,
+        classes,
+        cfg,
+        ..
+    } = &mut *g;
+    let s = sessions.get_mut(&tab).ok_or(NO_SESSION)?;
+    s.refresh_compare(false, classes);
     let cx = PaintCtx {
-        classes: &g.classes,
-        min_tile: g.cfg.min_tile,
-        text_scale: g.cfg.text_scale(),
+        classes,
+        min_tile: cfg.min_tile,
+        text_scale: cfg.text_scale(),
         width,
         height,
         dpr,
-        highlight: g.cfg.highlight_changes,
+        highlight: cfg.highlight_changes,
         now: fmt::filetime_now(),
     };
     Ok(tauri::ipc::Response::new(paint::build(s, &cx)))
@@ -368,6 +381,53 @@ pub struct Details {
     age: Option<u8>,
     tag: u8,
     pinned: bool,
+    /// Compare mode: size in the snapshot, empty when new.
+    old: String,
+    /// Compare mode: size change.
+    delta: String,
+    /// Compare mode: `New`, `Grown`, `Shrunk`, `Same` or `Deleted`.
+    change: &'static str,
+}
+
+fn status_name(st: DeltaStatus) -> &'static str {
+    match st {
+        DeltaStatus::New => "New",
+        DeltaStatus::Deleted => "Deleted",
+        DeltaStatus::Grown => "Grown",
+        DeltaStatus::Shrunk => "Shrunk",
+        DeltaStatus::Same => "Same",
+    }
+}
+
+/// Old size, change and status of a node in compare mode.
+fn add_delta(s: &Session, id: NodeId, d: &mut Details) {
+    let Some(c) = s.compare.as_ref() else { return };
+    let tree = s.scan.tree();
+    d.old = c.map.old_size(id).map_or_else(String::new, fmt::size);
+    d.delta = fmt::delta(c.map.delta(tree, id));
+    d.change = status_name(c.map.status(tree, id));
+}
+
+fn deleted_details(s: &Session, node: i32, folder: NodeId) -> Res<Details> {
+    let tree = s.scan.tree();
+    let c = s.compare.as_ref().ok_or("Not comparing")?;
+    if folder.0 as usize >= tree.len() {
+        return Err("Unknown node".into());
+    }
+    let bytes = c.map.deleted(folder);
+    Ok(Details {
+        id: node,
+        name: "Deleted".into(),
+        path: tree.full_path(folder),
+        kind: "deleted",
+        size: fmt::size(bytes),
+        disk: fmt::size(bytes),
+        items: Some(c.map.deleted_items(folder)),
+        old: fmt::size(bytes),
+        delta: fmt::delta(-(bytes.min(i64::MAX as u64) as i64)),
+        change: "Deleted",
+        ..Details::default()
+    })
 }
 
 fn special_details(s: &Session, id: i32) -> Details {
@@ -396,6 +456,9 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
     if node == FREE_ID || node == UNKNOWN_ID {
         return Ok(special_details(s, node));
     }
+    if let Some(folder) = deleted_folder(node) {
+        return deleted_details(s, node, folder);
+    }
     let id = node_id(s, node).ok_or("Unknown node")?;
     let tree = s.scan.tree();
     let n = tree.get(id);
@@ -413,7 +476,7 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
         String::new()
     };
     let path = tree.full_path(id);
-    Ok(Details {
+    let mut d = Details {
         id: node,
         name: tree.name(id).to_string(),
         pinned: !is_file && g.cfg.is_pinned(&path),
@@ -429,7 +492,10 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
         class,
         age: is_file.then(|| age_bucket(times.mtime, fmt::filetime_now())),
         tag: s.tags.raw(id),
-    })
+        ..Details::default()
+    };
+    add_delta(s, id, &mut d);
+    Ok(d)
 }
 
 /// One row of the largest-items lists.
@@ -458,6 +524,60 @@ pub struct StatsOut {
     classes: Vec<ClassRow>,
     /// Bytes per age bucket, most recent first.
     ages: Vec<AgeRow>,
+    /// Compare mode: largest changes under the view root.
+    changes: Option<Changes>,
+}
+
+/// One row of the changes lists.
+#[derive(Serialize)]
+pub struct ChangeRow {
+    /// The node, or its nearest existing folder when deleted.
+    id: Option<u32>,
+    name: String,
+    parent: String,
+    delta: String,
+    change: &'static str,
+}
+
+/// Top growers and shrinkers.
+#[derive(Serialize)]
+pub struct Changes {
+    growers: Vec<ChangeRow>,
+    shrinkers: Vec<ChangeRow>,
+}
+
+const CHANGES_N: usize = 10;
+
+fn change_row(tree: &diskmap_core::tree::Tree, e: &DiffEntry) -> ChangeRow {
+    let (parent, name) = e.path.rsplit_once('\\').unwrap_or(("", &e.path));
+    let id = tree.find_path(&e.path).or_else(|| tree.find_path(parent));
+    ChangeRow {
+        id: id.map(|n| n.0),
+        name: name.to_string(),
+        parent: parent.to_string(),
+        delta: fmt::delta(e.delta()),
+        change: status_name(e.status),
+    }
+}
+
+/// Largest changes under the view root, when comparing.
+fn changes(s: &mut Session) -> Option<Changes> {
+    let root = s.rel_path(s.root);
+    let ver = s.scan.version;
+    let tree = s.scan.tree();
+    let m = s.compare.as_mut()?.movers(tree, ver);
+    let rows = |list: &[usize]| {
+        list.iter()
+            .map(|&i| &m.entries[i])
+            .filter(|e| under(&e.path, &root))
+            .take(CHANGES_N)
+            .map(|e| change_row(tree, e))
+            .collect()
+    };
+    Some(Changes {
+        growers: rows(&m.growers),
+        shrinkers: rows(&m.shrinkers),
+    })
 }
 
 /// Bytes of one age bucket.
@@ -522,6 +642,7 @@ pub async fn stats(state: State<'_, AppState>, tab: TabId) -> Res<StatsOut> {
         folders: tops(s, &folders),
         classes: rows,
         ages,
+        changes: changes(s),
     })
 }
 
@@ -943,4 +1064,116 @@ pub async fn update_check(app: AppHandle) -> Res<UpdateInfo> {
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Res<()> {
     Ok(update::install(&app).await?)
+}
+
+/// The schedule settings, whether the task exists, and the folders it can snapshot.
+#[derive(Serialize)]
+pub struct ScheduleInfo {
+    config: Schedule,
+    /// The task is registered in Task Scheduler.
+    exists: bool,
+    /// Fixed drives and pinned folders.
+    choices: Vec<String>,
+    /// This process runs as administrator.
+    admin: bool,
+}
+
+fn schedule_info(config: Schedule, pins: Vec<String>, exists: bool) -> ScheduleInfo {
+    let mut choices: Vec<String> = list_drives()
+        .into_iter()
+        .filter(|d| d.kind == DriveKind::Fixed)
+        .map(|d| d.root)
+        .collect();
+    for r in pins.into_iter().chain(config.roots.iter().cloned()) {
+        if !choices.iter().any(|c| same_path(c, &r)) {
+            choices.push(r);
+        }
+    }
+    ScheduleInfo {
+        config,
+        exists,
+        choices,
+        admin: diskmap_scan::is_elevated(),
+    }
+}
+
+async fn task_exists() -> Res<bool> {
+    Ok(tauri::async_runtime::spawn_blocking(scheduler::exists)
+        .await
+        .map_err(|e| e.to_string())?)
+}
+
+/// Schedule settings and the state of the task.
+#[tauri::command]
+pub async fn schedule_get(state: State<'_, AppState>) -> Res<ScheduleInfo> {
+    let (config, pins) = {
+        let g = state.lock();
+        (g.cfg.schedule.clone(), g.cfg.pins.clone())
+    };
+    Ok(schedule_info(config, pins, task_exists().await?))
+}
+
+/// Creates, replaces or deletes the task, then stores the settings. Nothing is stored on failure.
+#[tauri::command]
+pub async fn schedule_set(state: State<'_, AppState>, schedule: Schedule) -> Res<ScheduleInfo> {
+    let mut new = schedule;
+    new.sanitize();
+    let (old, pins) = {
+        let g = state.lock();
+        (g.cfg.schedule.clone(), g.cfg.pins.clone())
+    };
+    let task = new.clone();
+    tauri::async_runtime::spawn_blocking(move || scheduler::apply(&old, &task))
+        .await
+        .map_err(|e| e.to_string())??;
+    {
+        let mut g = state.lock();
+        g.cfg.schedule = new.clone();
+        g.cfg.save();
+    }
+    Ok(schedule_info(new, pins, task_exists().await?))
+}
+
+/// Totals of one timeline point.
+#[derive(Serialize)]
+pub struct TimelinePoint {
+    /// Unix seconds, UTC.
+    time: i64,
+    allocated: u64,
+    logical: u64,
+    files: u64,
+}
+
+fn timeline_points(root: &str) -> Vec<TimelinePoint> {
+    timeline::list(root)
+        .into_iter()
+        .filter_map(|p| {
+            let s = timeline::load(&p.path)
+                .map_err(|e| log::warn("timeline", e))
+                .ok()?;
+            let r = s.root();
+            Some(TimelinePoint {
+                time: p.time,
+                allocated: r.allocated,
+                logical: r.logical,
+                files: r.files,
+            })
+        })
+        .collect()
+}
+
+/// The timeline points of a root, oldest first.
+#[tauri::command]
+pub async fn timeline(root: String) -> Res<Vec<TimelinePoint>> {
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || timeline_points(&root))
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+}
+
+/// The most recent report lines, newest first (default 50).
+#[tauri::command]
+pub async fn reports(limit: Option<usize>) -> Res<Vec<timeline::ReportLine>> {
+    Ok(timeline::reports(limit.unwrap_or(50)))
 }

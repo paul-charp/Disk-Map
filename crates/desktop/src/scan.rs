@@ -99,6 +99,13 @@ impl Scan {
         self.mft == MftSupport::NotElevated
     }
 
+    /// True when the scan ran to its end and read the root: not stopped, not failed outright.
+    pub fn completed(&self) -> bool {
+        let tree = self.tree();
+        let empty = tree.get(tree.root()).child_count() == 0;
+        !self.running && !self.cancelled && !(empty && self.errors > 0)
+    }
+
     /// Asks the scanner to stop.
     pub fn stop(&self) {
         self.cancel.store(true, Ordering::Relaxed);

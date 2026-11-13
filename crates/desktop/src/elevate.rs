@@ -1,42 +1,19 @@
-//! Relaunching the app with administrator rights.
+//! Starting programs with administrator rights.
 
+use diskmap_core::schedule::command_line;
 use std::ffi::OsStr;
 use std::mem::size_of;
 use std::os::windows::ffi::OsStrExt;
-use windows::Win32::UI::Shell::{SEE_MASK_NOASYNC, SHELLEXECUTEINFOW, ShellExecuteExW};
-use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::System::Threading::{GetExitCodeProcess, INFINITE, WaitForSingleObject};
+use windows::Win32::UI::Shell::{
+    SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
+};
+use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, SW_SHOWNORMAL};
 use windows::core::PCWSTR;
 
 fn wide(s: &OsStr) -> Vec<u16> {
     s.encode_wide().chain(std::iter::once(0)).collect()
-}
-
-/// Quotes one argument for a Windows command line.
-fn quote(arg: &str) -> String {
-    let mut out = String::from('"');
-    let mut slashes = 0;
-    for c in arg.chars() {
-        match c {
-            '\\' => slashes += 1,
-            '"' => {
-                out.push_str(&"\\".repeat(slashes * 2 + 1));
-                out.push('"');
-                slashes = 0;
-            }
-            _ => {
-                out.push_str(&"\\".repeat(slashes));
-                out.push(c);
-                slashes = 0;
-            }
-        }
-    }
-    out.push_str(&"\\".repeat(slashes * 2));
-    out.push('"');
-    out
-}
-
-fn command_line(paths: &[String]) -> String {
-    paths.iter().map(|p| quote(p)).collect::<Vec<_>>().join(" ")
 }
 
 /// Starts this executable again as administrator with `paths` as arguments.
@@ -61,17 +38,33 @@ pub fn relaunch(paths: &[String]) -> bool {
     unsafe { ShellExecuteExW(&mut info) }.is_ok()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn quotes_paths() {
-        assert_eq!(quote(r"C:\"), r#""C:\\""#);
-        assert_eq!(quote(r"D:\my files\x"), r#""D:\my files\x""#);
-        assert_eq!(
-            command_line(&[r"C:\a".into(), r"E:\".into()]),
-            r#""C:\a" "E:\\""#
-        );
+/// Runs `program` as administrator with a hidden window and waits for its exit code.
+/// Fails when the user declined the prompt.
+pub fn run_elevated(program: &str, args: &[String]) -> Result<u32, String> {
+    let file = wide(OsStr::new(program));
+    let params = wide(OsStr::new(&command_line(args)));
+    let verb = wide(OsStr::new("runas"));
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOASYNC | SEE_MASK_NOCLOSEPROCESS,
+        lpVerb: PCWSTR(verb.as_ptr()),
+        lpFile: PCWSTR(file.as_ptr()),
+        lpParameters: PCWSTR(params.as_ptr()),
+        nShow: SW_HIDE.0,
+        ..SHELLEXECUTEINFOW::default()
+    };
+    // SAFETY: info points to NUL-terminated strings that outlive the call.
+    unsafe { ShellExecuteExW(&mut info) }.map_err(|e| format!("Elevation failed: {e}"))?;
+    if info.hProcess.is_invalid() {
+        return Err("Elevation failed: no process".into());
     }
+    let mut code = 1;
+    // SAFETY: hProcess is a valid process handle owned here and closed once.
+    unsafe {
+        WaitForSingleObject(info.hProcess, INFINITE);
+        let got = GetExitCodeProcess(info.hProcess, &mut code);
+        let _ = CloseHandle(info.hProcess);
+        got.map_err(|e| e.to_string())?;
+    }
+    Ok(code)
 }

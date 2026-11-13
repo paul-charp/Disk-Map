@@ -48,6 +48,14 @@ export const api = {
   revealConfig: () => invoke('reveal_config'),
   updateCheck: () => invoke('update_check'),
   updateInstall: () => invoke('update_install'),
+  scheduleGet: () => invoke('schedule_get'),
+  scheduleSet: (schedule) => invoke('schedule_set', { schedule }),
+  timeline: (root) => invoke('timeline', { root }),
+  reports: (limit = null) => invoke('reports', { limit }),
+  snapshots: (tab) => invoke('snapshots', { tab }),
+  saveSnapshot: (tab) => invoke('save_snapshot', { tab }),
+  deleteSnapshot: (path) => invoke('delete_snapshot', { path }),
+  compare: (tab, path) => invoke('compare', { tab, path }),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));

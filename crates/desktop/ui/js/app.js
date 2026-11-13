@@ -91,6 +91,13 @@ app.exportTo = async (scope, format, node = null) => {
   }
 };
 
+/** Compares the tab against a snapshot path, or leaves compare mode with null; errors go to the status bar. */
+app.compare = (path) => app.act(api.compare(app.tab.id, path)).catch((e) => app.parts.statusbar.flash(String(e)));
+
+/** Saves a kept snapshot of the tab now. */
+app.saveSnapshot = () =>
+  api.saveSnapshot(app.tab.id).then(() => app.parts.statusbar.flash('Snapshot saved'), (e) => app.parts.statusbar.flash(String(e)));
+
 app.applyFilter = async (text) => {
   const tab = app.tab;
   tab.filterText = text;

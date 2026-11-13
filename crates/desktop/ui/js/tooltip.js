@@ -8,6 +8,8 @@ function rows(d) {
   const add = (k, v) => v && kv.append(el('span', '', k), el('span', '', v));
   add('Size', d.size);
   add('On disk', d.disk);
+  add('Before', d.old);
+  add('Change', d.change && `${d.delta} · ${d.change}`);
   add('Modified', d.modified);
   add('Created', d.created);
   add('Accessed', d.accessed);

@@ -1,7 +1,8 @@
 //! Filter evaluation over a tree.
 
-use super::{Cmp, Filter, Selector, TimeKind};
+use super::{Cmp, Filter, Selector, TimeKind, status_bit};
 use crate::classes::FileClasses;
+use crate::compare::Compare;
 use crate::tags::Tags;
 use crate::tree::{NodeId, NodeKind, Tree};
 
@@ -11,6 +12,8 @@ pub struct FilterCtx<'a> {
     pub classes: &'a FileClasses,
     /// Current time as a Windows FILETIME.
     pub now: i64,
+    /// Comparison against a snapshot, in compare mode; compare conditions match nothing without it.
+    pub compare: Option<&'a Compare>,
 }
 
 /// Result of applying a filter.
@@ -239,7 +242,26 @@ impl Filter {
                 return false;
             }
         }
+        if self.uses_compare() && !self.compare_matches(tree, id, ctx) {
+            return false;
+        }
         folder_bits & self.positive_folders == self.positive_folders
             && folder_bits & self.negative_folders == 0
+    }
+
+    fn compare_matches(&self, tree: &Tree, id: NodeId, ctx: &FilterCtx) -> bool {
+        let Some(c) = ctx.compare else {
+            return false;
+        };
+        let bit = status_bit(c.status(tree, id));
+        if (self.status_include != 0 && self.status_include & bit == 0)
+            || self.status_exclude & bit != 0
+        {
+            return false;
+        }
+        let delta = c.delta(tree, id);
+        self.deltas
+            .iter()
+            .all(|d| compare(d.cmp, delta.into(), d.bytes.into()) != d.negated)
     }
 }
