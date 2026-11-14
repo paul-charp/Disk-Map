@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-snapshot-store"
+description = "Enables the snapshot_store command without any pre-configured scope."
+commands.allow = ["snapshot_store"]
+
+[[permission]]
+identifier = "deny-snapshot-store"
+description = "Denies the snapshot_store command without any pre-configured scope."
+commands.deny = ["snapshot_store"]

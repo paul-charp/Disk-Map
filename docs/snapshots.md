@@ -19,7 +19,8 @@ Plan: `docs/roadmap.md`. Storage, retention, reports and the scheduler: below.
 - Files: `<data>/snapshots/<root_key(root)>/<YYYYMMDD-HHMMSS>.dmsn` (scan time, UTC; `crates/desktop/src/snapstore.rs`). Manual snapshots end in `-keep` and are never pruned. Writes go to a `.tmp` file, then rename.
 - After every completed full scan (not view rescans, not stopped scans) a snapshot is saved in the background when `auto_snapshot` is on, then the root keeps its newest `keep_snapshots` automatic ones.
 - Compare mode (`crates/desktop/src/compare.rs`, `diskmap_core::compare`): every node of the current tree is matched by path to the snapshot; tiles get a delta class, deleted bytes become a Deleted ghost item per folder. Live changes recompute the match at most every 3 s. A rescan keeps comparing against the same snapshot.
-- Commands: `snapshots`, `save_snapshot`, `delete_snapshot`, `compare`. Test switch `--compare latest|<path>`.
+- Snapshot manager (Settings, Snapshots; also Compare menu, Manage): every stored snapshot grouped by root, with totals. Per snapshot: Keep (renames to or from `-keep`), Compare (in the active tab when it shows that root, otherwise in a new tab after its scan), Reveal, Delete; per root: Compare latest and Delete unkept.
+- Commands: `snapshots`, `save_snapshot`, `delete_snapshot`, `snapshot_store`, `keep_snapshot`, `reveal_snapshot`, `compare`. Test switches `--compare latest|<path>`, `--settings Snapshots`.
 
 ## Encoding
 

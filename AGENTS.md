@@ -75,7 +75,7 @@ Test switches (`crates/desktop/src/args.rs`), applied after the scan of the last
 - `--detail <n>`: set the detail level.
 - `--side`: show the side panel.
 - `--compare <latest|path>`: compare against a snapshot of the root; `latest` is the newest one not saved by this scan.
-- `--settings <section>`: open Settings at startup (Appearance, Map, Scan, Schedule, Classes, Keys, About); applied at startup.
+- `--settings <section>`: open Settings at startup (Appearance, Map, Scan, Schedule, Snapshots, Classes, Keys, About); applied at startup.
 - `--theme <name>`: theme for this run; applied at startup.
 - `--scale <percent>`: UI scale for this run; applied at startup.
 - `--log`: show the Output panel; applied at startup.

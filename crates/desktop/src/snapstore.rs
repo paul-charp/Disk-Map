@@ -111,6 +111,52 @@ fn entry(path: &Path) -> Option<Entry> {
     })
 }
 
+/// Folder holding the snapshot folders of all roots; created when missing.
+pub fn base_dir() -> io::Result<PathBuf> {
+    let dir = paths::ensure_data_dir()?.join(DIR);
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+/// Snapshots of every root, grouped by root path in name order, each group newest first.
+pub fn list_all() -> Vec<(String, Vec<Entry>)> {
+    base_dir().map(|d| list_all_in(&d)).unwrap_or_default()
+}
+
+fn list_all_in(base: &Path) -> Vec<(String, Vec<Entry>)> {
+    let Ok(read) = fs::read_dir(base) else {
+        return Vec::new();
+    };
+    let mut out: Vec<(String, Vec<Entry>)> = read
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .map(|d| list_in(&d))
+        .filter_map(|list| Some((list.first()?.info.root_path.clone(), list)))
+        .collect();
+    out.sort_by_key(|(root, _)| root.to_lowercase());
+    out
+}
+
+/// Marks a snapshot as kept (never pruned) or not, by renaming it; returns the new path.
+pub fn set_kept(path: &Path, kept: bool) -> Result<PathBuf, String> {
+    if !is_snapshot(path) {
+        return Err(format!("Not a snapshot: {}", path.display()));
+    }
+    rename_kept(path, kept)
+}
+
+fn rename_kept(path: &Path, kept: bool) -> Result<PathBuf, String> {
+    let e = entry(path).ok_or_else(|| format!("Cannot read {}", path.display()))?;
+    if e.kept == kept {
+        return Ok(e.path);
+    }
+    let dir = path.parent().ok_or("No folder")?;
+    let to = file_name(dir, e.info.meta.scan_time, kept);
+    fs::rename(path, &to).map_err(|err| format!("{}: {err}", path.display()))?;
+    Ok(to)
+}
+
 /// Reads and decodes a snapshot.
 pub fn load(path: &Path) -> Result<(Tree, SnapshotMeta), String> {
     let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -206,5 +252,33 @@ mod tests {
         assert!(left.iter().any(|e| e.path == kept && e.kept));
         let (back, _) = load(&kept).expect("load");
         assert_eq!(back.file_count(), 1);
+    }
+
+    #[test]
+    fn keep_renames_both_ways() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let base = 133_000_000_000_000_000;
+        let p = save_in(dir.path(), &tree(), &meta(base), false).expect("save");
+        let kept = rename_kept(&p, true).expect("keep");
+        assert!(kept.to_string_lossy().ends_with("-keep.dmsn"));
+        assert!(!p.exists());
+        assert!(list_in(dir.path())[0].kept);
+        let back = rename_kept(&kept, false).expect("unkeep");
+        assert_eq!(back, p);
+        assert_eq!(rename_kept(&back, false).expect("same"), p);
+    }
+
+    #[test]
+    fn list_all_groups_by_root() {
+        let base = tempfile::tempdir().expect("tempdir");
+        for (key, root) in [("b", "D:\\b"), ("a", "C:\\data")] {
+            let dir = base.path().join(key);
+            fs::create_dir_all(&dir).expect("dir");
+            save_in(&dir, &Tree::new(root), &meta(1), false).expect("save");
+        }
+        fs::create_dir_all(base.path().join("empty")).expect("dir");
+        let all = list_all_in(base.path());
+        let roots: Vec<_> = all.iter().map(|(r, l)| (r.as_str(), l.len())).collect();
+        assert_eq!(roots, [("C:\\data", 1), ("D:\\b", 1)]);
     }
 }
