@@ -51,6 +51,9 @@ const COMMANDS: &[&str] = &[
     "snapshots",
     "save_snapshot",
     "delete_snapshot",
+    "snapshot_store",
+    "keep_snapshot",
+    "reveal_snapshot",
     "compare",
 ];
 

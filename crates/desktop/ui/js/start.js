@@ -3,7 +3,6 @@ import { api } from './api.js';
 import { Trend, change, sparkline } from './chart.js';
 import { button, iconButton } from './controls.js';
 import { $, el } from './dom.js';
-import { compareTo } from './flags.js';
 import { ago, dayTime, signed, size, trend, weekdayTime } from './fmt.js';
 import { setIcon } from './icons.js';
 
@@ -201,15 +200,7 @@ export function initStart(app) {
   };
 
   /** Opens a tab scanning `root`, compares it with the latest snapshot when the scan ends, then zooms to `rel`. */
-  const compare = async (root, rel) => {
-    const tab = await app.newTab();
-    app.afterScan(tab, async () => {
-      if (!(await compareTo(app, tab, 'latest'))) return app.parts.statusbar.flash('No snapshot');
-      const node = rel ? await api.findNode(tab.id, rel).catch(() => null) : null;
-      if (node != null && app.tab === tab) await app.zoom(node);
-    });
-    await app.scan(tab, root);
-  };
+  const compare = (root, rel) => app.compareRoot(root, 'latest', rel);
 
   const ctx = {
     scan,

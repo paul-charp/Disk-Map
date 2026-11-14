@@ -56,6 +56,9 @@ export const api = {
   snapshots: (tab) => invoke('snapshots', { tab }),
   saveSnapshot: (tab) => invoke('save_snapshot', { tab }),
   deleteSnapshot: (path) => invoke('delete_snapshot', { path }),
+  snapshotStore: () => invoke('snapshot_store'),
+  keepSnapshot: (path, kept) => invoke('keep_snapshot', { path, kept }),
+  revealSnapshot: (path = null) => invoke('reveal_snapshot', { path }),
   compare: (tab, path) => invoke('compare', { tab, path }),
 };
 

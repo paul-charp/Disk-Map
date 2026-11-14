@@ -58,6 +58,9 @@
     "allow-snapshots",
     "allow-save-snapshot",
     "allow-delete-snapshot",
+    "allow-snapshot-store",
+    "allow-keep-snapshot",
+    "allow-reveal-snapshot",
     "allow-compare",
     "core:event:allow-listen",
     "core:event:allow-unlisten"

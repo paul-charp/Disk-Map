@@ -45,6 +45,7 @@ async function compareMenu(app, button) {
     : [{ title: 'No snapshots' }];
   items.push({ sep: true }, { label: 'Save now', run: () => app.saveSnapshot() });
   if (app.status.compare) items.push({ label: 'Off', run: () => app.compare(null) });
+  items.push({ sep: true }, { label: 'Manage', run: () => app.parts.settings.open('Snapshots') });
   const r = button.getBoundingClientRect();
   openMenu(items, r.left, r.bottom + 2);
 }

@@ -139,3 +139,94 @@ fn same_root(a: &str, b: &str) -> bool {
     let trim = |s: &str| s.trim_end_matches(['\\', '/']).to_lowercase();
     trim(a) == trim(b)
 }
+
+/// One stored snapshot in the snapshot manager.
+#[derive(Serialize)]
+pub struct StoreRow {
+    path: String,
+    date: String,
+    /// Scanned size of the root.
+    size: String,
+    /// Size of the file.
+    file: String,
+    kept: bool,
+    files: u64,
+}
+
+/// The snapshots of one root.
+#[derive(Serialize)]
+pub struct StoreGroup {
+    root: String,
+    /// Total size of its files.
+    file: String,
+    rows: Vec<StoreRow>,
+}
+
+/// Every stored snapshot, grouped by root.
+#[derive(Serialize)]
+pub struct Store {
+    count: usize,
+    /// Total size of all snapshot files.
+    file: String,
+    groups: Vec<StoreGroup>,
+}
+
+fn store_row(e: Entry) -> StoreRow {
+    StoreRow {
+        path: e.path.to_string_lossy().into_owned(),
+        date: fmt::date_time(e.info.meta.scan_time),
+        size: fmt::size(e.info.allocated),
+        file: fmt::size(e.bytes),
+        kept: e.kept,
+        files: e.info.files,
+    }
+}
+
+fn store() -> Store {
+    let all = snapstore::list_all();
+    let bytes = |l: &[Entry]| l.iter().map(|e| e.bytes).sum::<u64>();
+    let total: u64 = all.iter().map(|(_, l)| bytes(l)).sum();
+    let count = all.iter().map(|(_, l)| l.len()).sum();
+    let groups = all
+        .into_iter()
+        .map(|(root, list)| StoreGroup {
+            root,
+            file: fmt::size(bytes(&list)),
+            rows: list.into_iter().map(store_row).collect(),
+        })
+        .collect();
+    Store {
+        count,
+        file: fmt::size(total),
+        groups,
+    }
+}
+
+/// Every stored snapshot of every root.
+#[tauri::command]
+pub async fn snapshot_store() -> Res<Store> {
+    Ok(tauri::async_runtime::spawn_blocking(store)
+        .await
+        .map_err(|e| e.to_string())?)
+}
+
+/// Keeps a snapshot from pruning, or lets it go; returns its new path.
+#[tauri::command]
+pub async fn keep_snapshot(path: String, kept: bool) -> Res<String> {
+    let to = snapstore::set_kept(Path::new(&path), kept)?;
+    Ok(to.to_string_lossy().into_owned())
+}
+
+/// Shows a snapshot file in Explorer, or opens the snapshot folder with `None`.
+#[tauri::command]
+pub async fn reveal_snapshot(path: Option<String>) -> Res<()> {
+    match path {
+        Some(p) if snapstore::is_snapshot(Path::new(&p)) => crate::shell::reveal(&p),
+        Some(p) => return Err(format!("Not a snapshot: {p}").into()),
+        None => {
+            let dir = snapstore::base_dir().map_err(|e| e.to_string())?;
+            crate::shell::open(&dir.to_string_lossy());
+        }
+    }
+    Ok(())
+}

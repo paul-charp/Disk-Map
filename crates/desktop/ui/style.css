@@ -330,3 +330,17 @@ svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColo
 .sstatus { display: flex; align-items: center; gap: 10px; }
 .sstatus .btn { height: 24px; }
 .sstate { min-width: 60px; color: var(--muted); }
+.snum { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgroup { padding: 8px 0 4px; border-bottom: 1px solid var(--border); }
+.sghead { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.sgroot { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; user-select: text; }
+.snap { display: flex; align-items: center; gap: 4px; min-height: 28px; padding-left: 12px; border-radius: 4px; }
+.snap:hover { background: var(--hover); }
+.snap .sdate { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snap .ssize, .snap .sfile { flex: none; width: 76px; text-align: right; white-space: nowrap; margin-right: 8px; }
+.snap .ib, .sghead .ib { flex: none; }
+.sghead .muted { flex: none; white-space: nowrap; }
+@media (max-width: 560px) { .snap .sfile, .snap .ssize { display: none; } .snap { padding-left: 4px; } }
+.snap .ib, .sghead .ib { width: 26px; height: 24px; }
+.snap .ib:not(.on) { opacity: .55; }
+.snap:hover .ib, .snap .ib:focus-visible { opacity: 1; }

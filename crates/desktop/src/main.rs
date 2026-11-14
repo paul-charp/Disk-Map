@@ -126,6 +126,9 @@ fn main() {
             snapcmds::snapshots,
             snapcmds::save_snapshot,
             snapcmds::delete_snapshot,
+            snapcmds::snapshot_store,
+            snapcmds::keep_snapshot,
+            snapcmds::reveal_snapshot,
             snapcmds::compare,
         ])
         .run(tauri::generate_context!())

@@ -1,6 +1,7 @@
 // Application state and the actions the chrome calls: tabs, navigation, filter and configuration.
 import { api } from './api.js';
 import { $ } from './dom.js';
+import { compareTo } from './flags.js';
 import { closeMenu } from './menu.js';
 import { SCHEMES } from './scheme.js';
 import { newTab } from './tabs.js';
@@ -106,6 +107,25 @@ app.scanEvent = (st) => {
   if (!fn || !st.active || st.running) return;
   scanHooks.delete(st.tab);
   fn();
+};
+
+const sameRoot = (a, b) => a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase();
+
+/**
+ * Compares `root` against a snapshot path or `latest`: in the active tab when it shows that root and is idle,
+ * otherwise in a new tab once its scan ends; then zooms to `rel` when given.
+ */
+app.compareRoot = async (root, which = 'latest', rel = '') => {
+  const run = async (tab) => {
+    if (!(await compareTo(app, tab, which))) return app.parts.statusbar.flash('No snapshot');
+    const node = rel ? await api.findNode(tab.id, rel).catch(() => null) : null;
+    if (node != null && app.tab === tab) await app.zoom(node);
+  };
+  const st = app.status;
+  if (app.tab && st && !st.running && st.path && sameRoot(st.path, root)) return run(app.tab);
+  const tab = await app.newTab();
+  app.afterScan(tab, () => run(tab));
+  await app.scan(tab, root);
 };
 
 /** Saves a kept snapshot of the tab now. */

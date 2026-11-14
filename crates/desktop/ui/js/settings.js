@@ -4,6 +4,7 @@ import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { classesSection } from './classtable.js';
 import { scheduleSection } from './schedule.js';
+import { snapshotsSection } from './snapshots.js';
 import { button, iconButton, row, segmented, stepper, swatches, toggle } from './controls.js';
 import { setIcon } from './icons.js';
 import { SHORTCUTS } from './keys.js';
@@ -45,6 +46,7 @@ export function initSettings(app) {
       row('Keep snapshots', num('keep_snapshots', [1, 2, 3, 5, 10, 20, 50, 100], String)),
     ],
     Schedule: () => scheduleSection(app),
+    Snapshots: () => snapshotsSection(app),
     Classes: () => [classesSection(app)],
     Keys: () => [keyList()],
     About: () => aboutSection(app),
