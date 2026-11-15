@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.2.0
 
 - Window title, shortcuts, uninstall entry and toasts named Diskmap; the exe stays `diskmap.exe`.
