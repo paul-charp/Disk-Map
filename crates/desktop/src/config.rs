@@ -13,6 +13,7 @@ const MIN_TILE_RANGE: (u32, u32) = (2, 16);
 const MAX_THREADS: u32 = 64;
 const TEXT_SIZES: [&str; 3] = ["small", "medium", "large"];
 const MAX_KEEP: u32 = 100;
+const MAX_FILTERS: usize = 20;
 const BACKENDS: [&str; 3] = ["auto", "mft", "walk"];
 const EVERY: [&str; 2] = ["daily", "weekly"];
 
@@ -164,6 +165,8 @@ pub struct Config {
     pub recent: Vec<Recent>,
     /// Pinned folders, normalised, without duplicates.
     pub pins: Vec<String>,
+    /// Saved filter texts, trimmed, without duplicates.
+    pub filters: Vec<String>,
     /// Defaults for new tabs.
     pub detail: u32,
     #[serde(alias = "class_colors", deserialize_with = "file_colors_compat")]
@@ -200,6 +203,7 @@ impl Default for Config {
             theme: "graphite".into(),
             recent: Vec::new(),
             pins: Vec::new(),
+            filters: Vec::new(),
             detail: 3,
             file_colors: FileColors::Accent,
             show_free: true,
@@ -307,12 +311,25 @@ impl Config {
             self.set_pin(&p, true);
         }
         self.schedule.sanitize();
+        self.sanitize_filters();
         for c in &mut self.classes {
             c.name = c.name.trim().to_string();
             if c.name.is_empty() {
                 c.name = "Class".into();
             }
         }
+    }
+
+    fn sanitize_filters(&mut self) {
+        let mut out: Vec<String> = Vec::new();
+        for f in std::mem::take(&mut self.filters) {
+            let f = f.trim().to_string();
+            if !f.is_empty() && !out.contains(&f) {
+                out.push(f);
+            }
+        }
+        out.truncate(MAX_FILTERS);
+        self.filters = out;
     }
 
     /// Replaces every setting but the recent list, the pins and the schedule with those of `new`.
@@ -490,6 +507,19 @@ mod tests {
         assert_eq!(cfg.known_size("C:\\a\\"), 42);
         cfg.replace(Config::default());
         assert_eq!(cfg.pins, ["C:\\a"]);
+    }
+
+    #[test]
+    fn filters_are_trimmed_unique_and_capped() {
+        let mut cfg = Config {
+            filters: vec![" >1gb ".into(), ">1gb".into(), " ".into(), "*.tmp".into()],
+            ..Config::default()
+        };
+        cfg.sanitize();
+        assert_eq!(cfg.filters, [">1gb", "*.tmp"]);
+        cfg.filters = (0..30).map(|i| format!("f{i}")).collect();
+        cfg.sanitize();
+        assert_eq!(cfg.filters.len(), MAX_FILTERS);
     }
 
     #[test]

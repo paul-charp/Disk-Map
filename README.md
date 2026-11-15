@@ -48,12 +48,13 @@ The exes are not code-signed, so SmartScreen may warn on first run (More info, R
 ## Usage
 
 - Start screen: type a path (several separated by `;`), pick a drive, a pinned folder or a recent scan, or browse. Folders dropped on the window open in tabs. Paths on the command line open one tab each.
-- Dashboard: drive cards with used space, 7 and 30 day change and a sparkline; the Trend chart of used space per drive; Movers from the latest periodic scans, which open a tab or Compare against the latest snapshot.
+- Dashboard: drive cards with used space, 7 and 30 day change and a sparkline; the Trend chart of used space per drive; Movers from the latest periodic scans, which open a tab or Compare against the latest snapshot. About and Settings at the top right.
 - Click a folder or file to select it; the map digs in place to show its contents.
 - Double click to zoom to the folder (the parent for a file). Back and Forward step through zooms only; Up and Root zoom out.
 - Right click: Open, Open in terminal, Reveal, Copy path, Properties, Scan in new tab, Pin, Recycle, tags, Export CSV and Zoom.
 - Toolbar: rescan, rescan view, detail, file colours (Accent, Class, Age), free and unknown space, Watch, Compare, Export, side panel, About and Settings.
-- Tabs: one scan per tab, Ctrl+N for a new tab, middle click to close.
+- Tabs: one scan per tab, Ctrl+N for a new tab, middle click to close, drag to reorder.
+- Filter bar: Presets (built-in and saved filters, Save, Clear) and Syntax (tokens by group, click to insert).
 - Live updates: the Watch toggle (Ctrl+L) follows changes after a scan. Highlight changes is in Settings, Scan.
 - Snapshots: a full snapshot is saved after every full scan (Settings, Scan: Auto snapshot, Keep snapshots), or with Compare, Save now. Compare lists the snapshots of the root; Settings, Snapshots manages them all (Keep, Compare, Reveal, Delete).
 - Periodic scans: Settings, Schedule registers a daily or weekly task `diskmap\Snapshot` that runs `diskmap.exe --snapshot <root>... --quiet`, optionally elevated for the MFT backend. Each run adds a timeline point and a report. See [docs/snapshots.md](docs/snapshots.md).
@@ -67,6 +68,7 @@ The exes are not code-signed, so SmartScreen may warn on first run (More info, R
 | Ctrl+N | New tab |
 | Ctrl+W | Close tab |
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab |
+| Ctrl+Shift+PageUp / PageDown | Move tab |
 | Ctrl+, | Settings |
 | F5 | Rescan / stop |
 | Backspace | Back |
@@ -87,7 +89,7 @@ Mouse buttons 4 and 5 act as Back and Forward.
 
 ## Filter syntax
 
-Conditions are separated by `;`. A leading `|` negates a condition. See [docs/filters.md](docs/filters.md).
+Conditions are separated by `;`. A leading `|` negates a condition. The Presets and Syntax buttons at the end of the filter bar fill it in. See [docs/filters.md](docs/filters.md).
 
 | Example | Matches |
 | --- | --- |

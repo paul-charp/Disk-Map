@@ -1,6 +1,6 @@
 # Filter grammar
 
-The filter field takes conditions separated by `;`. Empty conditions are ignored. Matching is done on files; a folder shows the sum of its matching files. A bad condition reports `condition: reason` and the previous filter stays active.
+The filter field takes conditions separated by `;`. Empty conditions are ignored. Matching is done on files; a folder shows the sum of its matching files. A bad condition reports `condition: reason` and the previous filter stays active. The Presets button applies a built-in or saved filter; the Syntax button inserts a condition.
 
 ```
 filter     = condition { ";" condition }

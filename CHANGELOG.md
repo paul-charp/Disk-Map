@@ -3,6 +3,10 @@
 ## 0.2.0
 
 - Window title Diskmap.
+- About and Settings buttons on the start screen.
+- Filter bar Presets (built-in filters, saved filters stored in `filters` in the config, Save, Clear) and Syntax menu that inserts tokens.
+- Tab reordering by drag, Ctrl+Shift+PageUp / PageDown.
+- CI uploads the installer artifact unzipped.
 - Portable and installed storage: the installer records its folder in `HKCU\Software\diskmap\InstallDir`; the exe in that folder keeps settings in `%APPDATA%\diskmap` and data in `%LOCALAPPDATA%\diskmap\data`, any other copy keeps everything next to itself. Releases ship a bare `diskmap-<tag>-windows-x64-portable.exe` instead of a zip.
 - Core snapshot format, timeline points and tree diff with top movers (`docs/snapshots.md`).
 - Output panel (Ctrl+`) with the application log: command, scan, watcher, config and script errors, level filter, Copy, Clear; error and warning counts in the status bar; mirrored to `diskmap.log` in the data folder (1 MB, rotated to `.1`); test switch `--log`.

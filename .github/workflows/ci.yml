@@ -42,8 +42,8 @@ jobs:
       - name: Installer
         working-directory: crates/desktop
         run: cargo tauri build --bundles nsis --ci --no-sign
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: diskmap-setup
           path: target/release/bundle/nsis/*-setup.exe
+          archive: false
           if-no-files-found: error

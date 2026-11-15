@@ -277,6 +277,15 @@ app.closeTab = async (id) => {
   await app.activate(next.id);
 };
 
+/** Moves a tab to `index` in the strip. */
+app.moveTab = (id, index) => {
+  const from = app.tabs.findIndex((t) => t.id === id);
+  const to = Math.max(0, Math.min(index, app.tabs.length - 1));
+  if (from < 0 || from === to) return;
+  app.tabs.splice(to, 0, ...app.tabs.splice(from, 1));
+  app.parts.tabbar.render();
+};
+
 /** Switches to the next (1) or previous (-1) tab. */
 app.cycle = (dir) => {
   const i = app.tabs.indexOf(app.tab);

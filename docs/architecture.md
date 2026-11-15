@@ -141,6 +141,7 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | `keep_snapshots` | 5 | Automatic snapshots kept per root (1 to 100); manual ones are never pruned |
 | `recent` | empty | Last 8 scanned paths with sizes and scan times |
 | `pins` | empty | Pinned folders |
+| `filters` | empty | Saved filters, at most 20 |
 | `schedule` | off | Scheduled snapshots: `enabled`, `every` (`daily`, `weekly`), `day`, `time` (`HH:MM`), `roots`, `elevated` ([snapshots.md](snapshots.md)) |
 | `classes` | six defaults | File classes: name, `#rrggbb`, extensions |
 
