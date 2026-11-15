@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "diskmap"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crossbeam-channel",
  "diskmap-core",
@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "diskmap-bench"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crossbeam-channel",
  "diskmap-core",
@@ -843,11 +843,11 @@ dependencies = [
 
 [[package]]
 name = "diskmap-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "diskmap-scan"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crossbeam-channel",
  "diskmap-core",
