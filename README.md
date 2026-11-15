@@ -123,7 +123,7 @@ cargo tauri build --bundles nsis --no-sign
 
 `--no-sign` skips the updater signature; without it the build needs `TAURI_SIGNING_PRIVATE_KEY` (see [docs/distribution.md](docs/distribution.md)).
 
-The installer is written to `target\release\bundle\nsis\diskmap_<version>_x64-setup.exe`.
+The installer is written to `target\release\bundle\nsis\Diskmap_<version>_x64-setup.exe`.
 
 ## Test
 

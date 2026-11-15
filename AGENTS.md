@@ -25,7 +25,7 @@ Installer (NSIS, needs the Tauri CLI: `cargo install tauri-cli --version "^2" --
 
 ```powershell
 cd crates\desktop
-cargo tauri build --bundles nsis   # target\release\bundle\nsis\diskmap_<version>_x64-setup.exe
+cargo tauri build --bundles nsis   # target\release\bundle\nsis\Diskmap_<version>_x64-setup.exe
 ```
 
 If `target\release\diskmap.exe` is locked by a running app, add `--target-dir target\tauri` to cargo commands.

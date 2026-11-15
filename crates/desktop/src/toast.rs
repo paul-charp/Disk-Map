@@ -10,7 +10,7 @@ use windows::core::{HSTRING, PCWSTR};
 
 /// AppUserModelID of the app, the Tauri identifier.
 pub const AUMID: &str = "dev.diskmap.app";
-const DISPLAY_NAME: &str = "diskmap";
+const DISPLAY_NAME: &str = "Diskmap";
 
 fn wide(s: &str) -> Vec<u16> {
     OsStr::new(s)

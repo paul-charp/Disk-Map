@@ -2,7 +2,7 @@
 
 ## 0.2.0
 
-- Window title Diskmap.
+- Window title, shortcuts, uninstall entry and toasts named Diskmap; the exe stays `diskmap.exe`.
 - About and Settings buttons on the start screen.
 - Filter bar Presets (built-in filters, saved filters stored in `filters` in the config, Save, Clear) and Syntax menu that inserts tokens.
 - Tab reordering by drag, Ctrl+Shift+PageUp / PageDown.

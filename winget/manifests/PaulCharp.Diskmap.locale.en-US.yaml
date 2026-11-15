@@ -6,7 +6,7 @@ PackageLocale: en-US
 Publisher: paul-charp
 PublisherUrl: https://github.com/paul-charp
 PublisherSupportUrl: https://github.com/paul-charp/Disk-Map/issues
-PackageName: diskmap
+PackageName: Diskmap
 PackageUrl: https://github.com/paul-charp/Disk-Map
 License: MIT
 LicenseUrl: https://github.com/paul-charp/Disk-Map/blob/main/LICENSE
