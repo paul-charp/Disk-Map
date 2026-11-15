@@ -1,12 +1,15 @@
 // Application state and the actions the chrome calls: tabs, navigation, filter and configuration.
 import { api } from './api.js';
 import { $ } from './dom.js';
+import { compareTo } from './flags.js';
 import { closeMenu } from './menu.js';
 import { SCHEMES } from './scheme.js';
 import { newTab } from './tabs.js';
 import { applyTheme } from './themes.js';
 
-const TOGGLE_KEYS = { classes: 'class_colors', free: 'show_free', unknown: 'show_unknown' };
+const TOGGLE_KEYS = { free: 'show_free', unknown: 'show_unknown' };
+/** File colour modes with their labels, in cycle order. */
+export const FILE_COLORS = [['accent', 'Accent'], ['class', 'Class'], ['age', 'Age']];
 const DETAIL_MAX = 12;
 export const TEXT_SCALES = { small: 0.9, medium: 1, large: 1.2 };
 
@@ -74,6 +77,61 @@ app.clearTags = () => app.act(api.clearTags(app.tab.id));
 app.reveal = (node) => api.reveal(app.tab.id, node);
 app.open = (node) => api.open(app.tab.id, node);
 
+/** Runs a shell action and shows its error in the status bar. */
+const shellAct = (promise) => promise.catch((e) => app.parts.statusbar.flash(String(e)));
+app.terminal = (node) => shellAct(api.terminal(app.tab.id, node));
+app.properties = (node) => shellAct(api.properties(app.tab.id, node));
+app.recycle = (node) => shellAct(app.act(api.recycle(app.tab.id, node)));
+/** Exports a scope (`view`, `selection`, `files`, `folders`) down to the detail level; reports in the status bar. */
+app.exportTo = async (scope, format, node = null) => {
+  try {
+    const path = await api.exportTo(app.tab.id, scope, format, app.status.detail, node);
+    if (path) app.parts.statusbar.setPath(`Exported ${path}`);
+  } catch (err) {
+    app.parts.statusbar.setPath(`Export failed: ${err}`);
+  }
+};
+
+/** Compares a tab against a snapshot path, or leaves compare mode with null; errors go to the status bar. */
+app.compare = (path, tab = app.tab) => app.act(api.compare(tab.id, path)).catch((e) => app.parts.statusbar.flash(String(e)));
+
+/** Callbacks run once when the scan of a tab ends, by tab id. */
+const scanHooks = new Map();
+
+/** Runs `fn` once when the next scan of `tab` ends. */
+app.afterScan = (tab, fn) => scanHooks.set(tab.id, fn);
+
+/** Runs the hook of a tab whose scan just ended. */
+app.scanEvent = (st) => {
+  const fn = scanHooks.get(st.tab);
+  if (!fn || !st.active || st.running) return;
+  scanHooks.delete(st.tab);
+  fn();
+};
+
+const sameRoot = (a, b) => a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase();
+
+/**
+ * Compares `root` against a snapshot path or `latest`: in the active tab when it shows that root and is idle,
+ * otherwise in a new tab once its scan ends; then zooms to `rel` when given.
+ */
+app.compareRoot = async (root, which = 'latest', rel = '') => {
+  const run = async (tab) => {
+    if (!(await compareTo(app, tab, which))) return app.parts.statusbar.flash('No snapshot');
+    const node = rel ? await api.findNode(tab.id, rel).catch(() => null) : null;
+    if (node != null && app.tab === tab) await app.zoom(node);
+  };
+  const st = app.status;
+  if (app.tab && st && !st.running && st.path && sameRoot(st.path, root)) return run(app.tab);
+  const tab = await app.newTab();
+  app.afterScan(tab, () => run(tab));
+  await app.scan(tab, root);
+};
+
+/** Saves a kept snapshot of the tab now. */
+app.saveSnapshot = () =>
+  api.saveSnapshot(app.tab.id).then(() => app.parts.statusbar.flash('Snapshot saved'), (e) => app.parts.statusbar.flash(String(e)));
+
 app.applyFilter = async (text) => {
   const tab = app.tab;
   tab.filterText = text;
@@ -101,6 +159,14 @@ app.toggle = async (kind) => {
   if (kind === 'side') return app.patchConfig({ show_side: !app.cfg.show_side });
   if (kind === 'watch') return app.patchConfig({ watch: !app.cfg.watch });
   await app.act(api.setToggle(app.tab.id, kind, !app.status[TOGGLE_KEYS[kind]]));
+};
+
+app.setFileColors = (mode) => app.act(api.setFileColors(app.tab.id, mode));
+
+/** Steps to the next file colour mode. */
+app.cycleFileColors = () => {
+  const i = FILE_COLORS.findIndex(([m]) => m === app.status.file_colors);
+  return app.setFileColors(FILE_COLORS[(i + 1) % FILE_COLORS.length][0]);
 };
 
 // ----- configuration -----
@@ -145,7 +211,10 @@ const showMode = () => {
   const map = app.tab.mode === 'map';
   $('view').hidden = !map;
   $('start').hidden = map;
-  if (!map) app.parts.start.show(app.tab);
+  if (map) return;
+  app.parts.start.show(app.tab);
+  app.parts.statusbar.update(app.tab.status);
+  app.parts.statusbar.setPath('');
 };
 
 /** Keeps the field text of the leaving tab. */
@@ -198,6 +267,7 @@ app.closeTab = async (id) => {
   const i = app.tabs.findIndex((t) => t.id === id);
   if (i < 0) return;
   const [tab] = app.tabs.splice(i, 1);
+  scanHooks.delete(id);
   api.closeTab(id);
   app.map.forget(id);
   if (!app.tabs.length) return app.newTab();
@@ -205,6 +275,15 @@ app.closeTab = async (id) => {
   const next = app.tabs[Math.min(i, app.tabs.length - 1)];
   app.tab = null;
   await app.activate(next.id);
+};
+
+/** Moves a tab to `index` in the strip. */
+app.moveTab = (id, index) => {
+  const from = app.tabs.findIndex((t) => t.id === id);
+  const to = Math.max(0, Math.min(index, app.tabs.length - 1));
+  if (from < 0 || from === to) return;
+  app.tabs.splice(to, 0, ...app.tabs.splice(from, 1));
+  app.parts.tabbar.render();
 };
 
 /** Switches to the next (1) or previous (-1) tab. */
@@ -229,6 +308,7 @@ app.scan = async (tab, path) => {
     app.setStatus(st);
     app.map.refresh();
   } catch (e) {
+    scanHooks.delete(tab.id);
     tab.startError = String(e);
     if (tab === app.tab) app.parts.start.error(tab.startError);
   }

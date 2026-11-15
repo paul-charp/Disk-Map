@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, develop, 'release/**', 'hotfix/**']
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
@@ -18,3 +19,31 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build --release -p diskmap
+
+  installer:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/heads/release/') ||
+      startsWith(github.head_ref, 'release/')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache Tauri CLI
+        id: tauri-cli
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri.exe
+          key: tauri-cli-2-${{ runner.os }}
+      - name: Install Tauri CLI
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Installer
+        working-directory: crates/desktop
+        run: cargo tauri build --bundles nsis --ci --no-sign
+      - uses: actions/upload-artifact@v7
+        with:
+          path: target/release/bundle/nsis/*-setup.exe
+          archive: false
+          if-no-files-found: error

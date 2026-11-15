@@ -8,6 +8,7 @@ export const SHORTCUTS = [
   ['Ctrl+W', 'Close tab'],
   ['Ctrl+Tab', 'Next tab'],
   ['Ctrl+Shift+Tab', 'Previous tab'],
+  ['Ctrl+Shift+PageUp / PageDown', 'Move tab'],
   ['Ctrl+,', 'Settings'],
   ['F5', 'Rescan / stop'],
   ['Backspace', 'Back'],
@@ -15,11 +16,12 @@ export const SHORTCUTS = [
   ['Ctrl+Up', 'Up'],
   ['Ctrl+Home', 'Root'],
   ['Ctrl++ / Ctrl+-', 'Detail'],
-  ['Ctrl+T', 'Class colours'],
+  ['Ctrl+T', 'File colours'],
   ['Ctrl+F', 'Free space'],
   ['Ctrl+U', 'Unknown space'],
   ['Ctrl+L', 'Watch'],
   ['Ctrl+B', 'Side panel'],
+  ['Ctrl+`', 'Output'],
   ['Ctrl+1 to 4', 'Tag'],
   ['Ctrl+0', 'Clear tags'],
 ];
@@ -47,6 +49,9 @@ function tabKey(app, e) {
   const k = e.key.toLowerCase();
   if (k === 'n') return () => app.newTab();
   if (k === 'w') return () => app.closeTab(app.tab.id);
+  if (e.shiftKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+    return () => app.moveTab(app.tab.id, app.tabs.indexOf(app.tab) + (e.key === 'PageUp' ? -1 : 1));
+  }
   if (e.key === 'Tab') return () => app.cycle(e.shiftKey ? -1 : 1);
   return null;
 }
@@ -54,12 +59,13 @@ function tabKey(app, e) {
 function ctrlKey(app, e) {
   const tabRun = tabKey(app, e);
   if (tabRun) return handled(e, tabRun);
+  if (e.code === 'Backquote' || e.key === '`') return handled(e, () => app.parts.output.toggle());
   if (app.tab.mode !== 'map') return;
   const k = e.key;
   if (PLUS.has(k)) return handled(e, () => app.changeDetail(1));
   if (MINUS.has(k)) return handled(e, () => app.changeDetail(-1));
   const map = {
-    t: () => app.toggle('classes'),
+    t: () => app.cycleFileColors(),
     f: () => app.toggle('free'),
     u: () => app.toggle('unknown'),
     l: () => app.toggle('watch'),

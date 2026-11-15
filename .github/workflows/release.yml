@@ -14,15 +14,124 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Cache Tauri CLI
+        id: tauri-cli
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri.exe
+          key: tauri-cli-2-${{ runner.os }}
+      - name: Install Tauri CLI
+        if: steps.tauri-cli.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --version "^2" --locked
       - name: Build
         run: cargo build --release -p diskmap
-      - name: Package
+      - name: Portable
+        shell: pwsh
+        run: Copy-Item target\release\diskmap.exe "diskmap-${{ github.ref_name }}-windows-x64-portable.exe"
+      - name: Updater key
+        id: key
+        shell: pwsh
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $pub = (Get-Content crates/desktop/tauri.conf.json -Raw | ConvertFrom-Json).plugins.updater.pubkey
+          if ($env:KEY -and $pub) {
+            "sign=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "::warning::No TAURI_SIGNING_PRIVATE_KEY secret or no plugins.updater.pubkey: publishing without updater artifacts. See docs/distribution.md."
+            "sign=false" >> $env:GITHUB_OUTPUT
+          }
+      - name: Installer
+        working-directory: crates/desktop
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if ('${{ steps.key.outputs.sign }}' -eq 'true') {
+            cargo tauri build --bundles nsis --ci
+          } else {
+            cargo tauri build --bundles nsis --ci --no-sign
+          }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Rename installer
         shell: pwsh
         run: |
-          $name = "diskmap-${{ github.ref_name }}-windows-x64"
-          New-Item -ItemType Directory $name | Out-Null
-          Copy-Item target\release\diskmap.exe, LICENSE, README.md $name
-          Compress-Archive -Path $name\* -DestinationPath "$name.zip"
+          $setup = @(Get-ChildItem target\release\bundle\nsis\*-setup.exe)
+          if ($setup.Count -ne 1) { throw "expected one setup.exe, found $($setup.Count)" }
+          Copy-Item $setup[0].FullName "diskmap-${{ github.ref_name }}-windows-x64-setup.exe"
+          if ('${{ steps.key.outputs.sign }}' -eq 'true') {
+            Copy-Item "$($setup[0].FullName).sig" "diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig"
+          }
+      - name: Updater manifest
+        if: steps.key.outputs.sign == 'true'
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = (Get-Content crates/desktop/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $pattern = '(?ms)^## ' + [regex]::Escape($version) + '[ \t]*\r?\n(.*?)(?=^## |\z)'
+          $section = [regex]::Match((Get-Content CHANGELOG.md -Raw), $pattern)
+          $notes = if ($section.Success -and $section.Groups[1].Value.Trim()) { $section.Groups[1].Value.Trim() } else { $tag }
+          $asset = "diskmap-$tag-windows-x64-setup.exe"
+          $manifest = [ordered]@{
+            version   = $version
+            notes     = $notes
+            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = (Get-Content "$asset.sig" -Raw).Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content latest.json -Encoding utf8NoBOM
+          Get-Content latest.json
       - uses: softprops/action-gh-release@v2
         with:
-          files: diskmap-${{ github.ref_name }}-windows-x64.zip
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            diskmap-${{ github.ref_name }}-windows-x64-portable.exe
+            diskmap-${{ github.ref_name }}-windows-x64-setup.exe
+            diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig
+            latest.json
+
+  winget:
+    needs: release
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}
+      SETUP_URL: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/diskmap-${{ github.ref_name }}-windows-x64-setup.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifests
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          Invoke-WebRequest $env:SETUP_URL -OutFile setup.exe
+          $sha = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+          $dir = "winget-out\$version"
+          New-Item -ItemType Directory $dir | Out-Null
+          $date = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
+          foreach ($f in Get-ChildItem winget\manifests\*.yaml) {
+            $text = ((Get-Content $f | Where-Object { $_ -notlike '# Template*' }) -join "`n") + "`n"
+            $text = $text.Replace('${VERSION}', $version).Replace('${TAG}', $env:TAG)
+            $text = $text.Replace('${DATE}', $date).Replace('${SHA256}', $sha)
+            Set-Content "$dir\$($f.Name)" $text -Encoding utf8NoBOM -NoNewline
+          }
+          Get-ChildItem $dir
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winget-manifests
+          path: winget-out
+          if-no-files-found: error
+      - name: Submit
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if ($env:TAG.Contains('-')) { "::notice::Pre-release $($env:TAG): winget submission skipped."; exit 0 }
+          if (-not $env:WINGET_TOKEN) { "::notice::No WINGET_TOKEN secret: winget submission skipped. See docs/distribution.md."; exit 0 }
+          $version = $env:TAG.TrimStart('v')
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          .\wingetcreate.exe update PaulCharp.Diskmap --version $version --urls $env:SETUP_URL --submit --token $env:WINGET_TOKEN
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

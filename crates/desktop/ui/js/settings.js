@@ -1,7 +1,11 @@
 // Settings dialog: a modal window with a list of sections; every change applies at once.
+import { api } from './api.js';
+import { FILE_COLORS } from './app.js';
 import { $, el } from './dom.js';
 import { classesSection } from './classtable.js';
-import { row, segmented, stepper, swatches, toggle } from './controls.js';
+import { scheduleSection } from './schedule.js';
+import { snapshotsSection } from './snapshots.js';
+import { button, iconButton, row, segmented, stepper, swatches, toggle } from './controls.js';
 import { setIcon } from './icons.js';
 import { SHORTCUTS } from './keys.js';
 import { THEMES } from './themes.js';
@@ -29,7 +33,7 @@ export function initSettings(app) {
     Map: () => [
       row('Detail', num('detail', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], String)),
       row('Min tile', num('min_tile', [2, 3, 4, 5, 6, 8, 10, 12, 16], (v) => `${v} px`)),
-      row('Class colours', flag('class_colors')),
+      row('File colours', segmented(FILE_COLORS, app.cfg.file_colors, set('file_colors'))),
       row('Free space', flag('show_free')),
       row('Unknown space', flag('show_unknown')),
     ],
@@ -38,9 +42,14 @@ export function initSettings(app) {
       row('Threads', num('threads', THREADS, (v) => (v ? String(v) : 'Auto'))),
       row('Watch changes', flag('watch')),
       row('Highlight changes', flag('highlight_changes')),
+      row('Auto snapshot', flag('auto_snapshot')),
+      row('Keep snapshots', num('keep_snapshots', [1, 2, 3, 5, 10, 20, 50, 100], String)),
     ],
+    Schedule: () => scheduleSection(app),
+    Snapshots: () => snapshotsSection(app),
     Classes: () => [classesSection(app)],
     Keys: () => [keyList()],
+    About: () => aboutSection(app),
   };
 
   const keyList = () => {
@@ -101,6 +110,43 @@ export function initSettings(app) {
   root.addEventListener('mousedown', (e) => e.target === root && api.close());
   root.addEventListener('keydown', (e) => onKey(e, api, nav, win));
   return api;
+}
+
+let aboutInfo = null;
+
+/** Name, version, license, links, config path and build of the app. */
+function aboutSection(app) {
+  const logo = document.querySelector('#start .logo')?.cloneNode(true);
+  const name = el('span', 'aname', 'diskmap');
+  const version = el('span', 'mono muted');
+  const head = el('div', 'ahead');
+  head.append(...(logo ? [logo] : []), name, version);
+  const license = el('span');
+  const links = el('span', 'alinks');
+  links.append(button('GitHub', () => api.openLink('repo')), button('Issues', () => api.openLink('issues')));
+  const path = el('span', 'apath mono');
+  const config = el('span', 'acfg');
+  config.append(path, iconButton('folder', 'Reveal', () => api.revealConfig()));
+  const build = el('span', 'mono muted');
+  aboutInfo ??= api.about();
+  aboutInfo.then((a) => {
+    name.textContent = a.name;
+    version.textContent = a.version;
+    license.textContent = `${a.license} License`;
+    path.textContent = a.config || '—';
+    path.title = a.config;
+    build.textContent = `${a.target} · ${a.profile} · ${a.portable ? 'portable' : 'installed'}`;
+  }).catch(() => {
+    aboutInfo = null;
+  });
+  return [
+    head,
+    row('License', license),
+    row('Links', links),
+    row('Config', config),
+    row('Build', build),
+    ...(app.parts.update?.rows() ?? []),
+  ];
 }
 
 function onKey(e, api, nav, win) {

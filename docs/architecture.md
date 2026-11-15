@@ -4,10 +4,29 @@
 
 | Crate | Role |
 | --- | --- |
-| `crates/core` (`diskmap-core`) | Arena `Tree`, squarified layout, filter grammar and evaluation, colour tags, file classes. No I/O. |
+| `crates/core` (`diskmap-core`) | Arena `Tree`, squarified layout, filter grammar and evaluation, colour tags, file classes, age buckets, snapshot and timeline formats, diff, compare, retention, reports, task XML (`docs/snapshots.md`), CSV and JSON export, log ring. No I/O. |
 | `crates/scan` (`diskmap-scan`) | Walk and MFT scan backends, `TreeBuilder`, `ReadDirectoryChangesW` watcher, `LiveUpdater`, volume and drive info. Windows only. |
 | `crates/bench` (`diskmap-bench`) | Command line tool: `scan`, `compare`, `watch`. |
 | `crates/desktop` (`diskmap`) | Tauri 2 app: sessions, config, paint list encoder, commands. Front end in `ui/`. |
+
+### Desktop modules
+
+| Module | Role |
+| --- | --- |
+| `main.rs`, `args.rs` | Startup, command line paths and test switches, headless `--snapshot` dispatch |
+| `commands.rs` | Tauri commands; `build.rs` lists them, `capabilities/main.json` allows them |
+| `state.rs`, `scan.rs`, `session.rs` | Shared state, scan worker, per-tab session (navigation, selection, tags, filter, statistics) |
+| `paint.rs`, `marks.rs` | Paint list encoder, change highlight |
+| `watch.rs` | Live updates |
+| `config.rs`, `paths.rs`, `appearance.rs` | Settings file, installed or portable locations, window frame and zoom |
+| `snapstore.rs`, `snapcmds.rs`, `compare.rs` | Full snapshots on disk, their commands, compare mode |
+| `timeline.rs`, `headless.rs`, `scheduler.rs`, `toast.rs` | Timeline points and reports, headless runs, Task Scheduler, toast |
+| `dashboard.rs` | The `dashboard` command |
+| `update.rs` | Updater ([distribution.md](distribution.md)) |
+| `log.rs` | Application log and `diskmap.log` |
+| `elevate.rs`, `shell.rs`, `fmt.rs` | Relaunch as administrator, Explorer integration, size and date text |
+
+The front end (`ui/js`) has one module per part: `app.js` (tab state and actions), `api.js` (command wrappers), `map.js` and `paintlist.js` (map canvas), `toolbar.js`, `statusbar.js`, `side.js`, `start.js` and `chart.js` (dashboard), `settings.js` and its sections, `output.js`, `menu.js`, `flags.js` (test switches).
 
 ## Data flow
 
@@ -39,11 +58,11 @@ PaintList decode -> Painter (offscreen canvas) -> MapView canvas + hover and hig
 
 - Header, 4 values: item count, label blob bytes, view root node id, layout time in microseconds.
 - Items, 8 values each: `x, y, w, h, node, meta, parent index, highlight`.
-  - `meta = depth | class << 8 | flags << 16`; class 255 means none.
-  - Flags: file 1, dir 2, drilled 4, free 8, unknown 16, selected 32, bold 64, label 128. The tag (0 to 4) is stored in the flag bits from bit 8.
+  - `meta = depth | class << 8 | flags << 16`; class 255 means none. With the age flag the class byte is an age bucket (`diskmap_core::age`, 0 is under a week); with the delta flag it is a delta class (`diskmap_core::compare`: 0 same, 1 new, 2 shrunk, 3 to 6 grown by relative growth, 7 deleted).
+  - Flags: file 1, dir 2, drilled 4, free 8, unknown 16, selected 32, bold 64, label 128, age 2048 (bit 11), delta 4096 (bit 12, compare mode), deleted 8192 (bit 13, ghost item of deleted bytes). The tag (0 to 4) is stored in the flag bits from bit 8.
   - `highlight = weight << 16 | warning << 15 | age in ms`; 0 when there is none.
 - Label blob: UTF-8 labels joined by `\n`, one per item flagged label, in item order. A label is `name`, byte 0x01, size text.
-- Item 0 is the view root and lies outside the drawn area. Node ids -1 and -2 are the free and unknown space items.
+- Item 0 is the view root and lies outside the drawn area. Node ids -1 and -2 are the free and unknown space items; `-3 - f` is the deleted item of folder `f` in compare mode.
 - Items are in paint order; hit testing walks them backwards, so the deepest item wins.
 
 ## Sessions and tabs
@@ -54,6 +73,18 @@ PaintList decode -> Painter (offscreen canvas) -> MapView canvas + hover and hig
 - Each scan gets an increasing epoch. `Status.ver` is the sum of the scan, filter and tag versions. The front end drops a snapshot older than the one it holds.
 - Rescan starts a new session in the same tab and carries the view options, filter, view root and selection (as names below the scan root), restoring them when the scan ends. Rescan view scans the view root alone and replaces that subtree.
 - Closing a tab drops its session, which cancels the scan and stops the watcher.
+- `app.afterScan(tab, fn)` runs `fn` once when the next scan of that tab ends (scan events with `active` and not `running`). The dashboard uses it for Compare.
+
+## Start screen
+
+The start tab is a dashboard (`ui/js/start.js`, drawings in `ui/js/chart.js`), filled by one `dashboard` command (`crates/desktop/src/dashboard.rs`):
+
+- Drives: label, file system, MFT capability (local fixed or removable NTFS), total and free bytes, and the root totals of every timeline point. Points are read with `Summary::read_root` from the first 4 KB of each file.
+- Pins and recent scans with size, last scan time (the recent entry's `time` or the newest point) and the change between the last two points.
+- The last 10 report lines, each with whether its root has a snapshot.
+- The schedule settings and whether the process is elevated. Whether the task exists comes from a background `schedule_get`.
+
+Drive cards show a used bar, the 7 and 30 day change (newest point against the newest one at least that old) and an SVG sparkline; the Trend chart is a canvas scaled by `devicePixelRatio` and redrawn on resize and theme change. Movers open a new tab on a root or a mover; Compare scans the root, compares with the newest snapshot not taken by that scan and zooms to the mover. Status slots: update available, next scheduled run (or Schedule off, Task missing), Elevate or Admin. Up and down colours are the `--up` and `--down` theme variables.
 
 ## Filter evaluation
 
@@ -78,15 +109,24 @@ The result is per-node allocated and logical sizes, the match count and the fold
 - A kernel buffer overflow marks the session stale; the status bar shows a Stale button that rescans.
 - Change highlight (`marks.rs`): changed nodes are remembered for 2 s. Painted items get weight 255 for the changed node and 110 for painted ancestors; shrinks and removals set the warning bit; a removed node is marked on its nearest surviving ancestor. The front end fades the highlight over 1.5 s. It is only encoded when `highlight_changes` is on.
 
+## Export
+
+`export` writes rows of a tab as CSV or JSON (`diskmap_core::export`): the view root's subtree, the selection's subtree, or the top files or folders of the side panel. Rows carry path, kind, allocated and logical size, file count for folders, modification time and tag, and honour the active filter. CSV has a header line, CRLF line ends and a UTF-8 BOM. A save dialog proposes `diskmap-<root>-<date>.<ext>`.
+
+## Log
+
+`log.rs` keeps a ring of the last 1000 entries (level, time, source, message) fed by command errors, scan and watcher failures, config errors and front end errors (`onerror`, `unhandledrejection`). Entries are sent to the front end (Output panel, status bar counts) and appended to `diskmap.log` in the data folder, rotated to `diskmap.log.1` at 1 MB.
+
 ## Config file
 
-`diskmap.toml` next to the executable, or the path in `DISKMAP_CONFIG`. It is loaded at start, written when settings change and after scans (recent list). Missing or invalid files give the defaults; values are clamped on load.
+`diskmap.toml` at the location below, or the path in `DISKMAP_CONFIG`. It is loaded at start, written when settings change and after scans (recent list). Missing or invalid files give the defaults; values are clamped on load.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `theme` | `graphite` | `graphite`, `paper`, `dusk`, `ember`, `violet` |
 | `detail` | 3 | Nesting levels for new tabs, 1 to 12 |
-| `class_colors`, `show_free`, `show_unknown` | false, true, true | Defaults for new tabs |
+| `file_colors` | `accent` | File tile colours for new tabs: `accent`, `class` or `age`; reads the former `class_colors` flag |
+| `show_free`, `show_unknown` | true, true | Defaults for new tabs |
 | `show_side` | false | Side panel |
 | `ui_scale` | 100 | Webview zoom in percent, 80 to 200 |
 | `map_text` | `medium` | `small`, `medium`, `large` |
@@ -96,7 +136,24 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | `backend` | `auto` | `auto`, `mft`, `walk` |
 | `watch` | false | Live updates |
 | `highlight_changes` | false | Change highlight |
-| `recent` | empty | Last 8 scanned paths with sizes |
+| `check_updates` | true | Check for a new release at startup |
+| `auto_snapshot` | true | Save a full snapshot after every completed full scan |
+| `keep_snapshots` | 5 | Automatic snapshots kept per root (1 to 100); manual ones are never pruned |
+| `recent` | empty | Last 8 scanned paths with sizes and scan times |
+| `pins` | empty | Pinned folders |
+| `filters` | empty | Saved filters, at most 20 |
+| `schedule` | off | Scheduled snapshots: `enabled`, `every` (`daily`, `weekly`), `day`, `time` (`HH:MM`), `roots`, `elevated` ([snapshots.md](snapshots.md)) |
 | `classes` | six defaults | File classes: name, `#rrggbb`, extensions |
 
 The environment variable `DISKMAP_PERF` names a file that receives one timing line per layout.
+
+## Storage paths
+
+`paths.rs` picks the mode once at startup:
+
+| Mode | When | Config | Data (snapshots, timeline, logs) |
+| --- | --- | --- | --- |
+| Installed | the exe folder is `HKCU\Software\diskmap\InstallDir` | `%APPDATA%\diskmap\diskmap.toml` | `%LOCALAPPDATA%\diskmap\data\` |
+| Portable | otherwise | `<exe dir>\diskmap.toml` | `<exe dir>\data\` |
+
+The installer writes `InstallDir` on every install and update (`windows/hooks.nsh`); the uninstaller deletes it. Folders are compared after canonicalization, ignoring case. The portable exe, a dev build, a 0.1.0 unzip or a copy of the installed exe elsewhere is portable. The installer puts the exe in `%LOCALAPPDATA%\diskmap\` by default, so installed data sits in its `data\` subfolder. `DISKMAP_CONFIG` overrides the config path in both modes; it does not change the data folder. Folders are created on first write.

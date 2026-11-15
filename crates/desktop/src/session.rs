@@ -1,10 +1,12 @@
 //! State of one scan: navigation, selection, tags, filter and statistics.
 
-use crate::config::Config;
+use crate::compare::{Base, CompareState};
+use crate::config::{Config, FileColors};
 use crate::fmt;
 use crate::marks::Marks;
 use crate::scan::Scan;
-use crate::watch::Live;
+use crate::watch::{DEFAULT_CLUSTER, Live};
+use diskmap_core::age::{AGE_BUCKETS, age_bucket};
 use diskmap_core::classes::FileClasses;
 use diskmap_core::filter::{Filter, FilterCtx, Filtered};
 use diskmap_core::layout::Sizes;
@@ -30,6 +32,7 @@ pub struct FilterState {
     dirty: bool,
     applied_tree_ver: u64,
     applied_tags_ver: u64,
+    applied_compare_ver: u64,
     applied_at: Option<Instant>,
 }
 
@@ -44,6 +47,7 @@ impl FilterState {
             dirty: false,
             applied_tree_ver: 0,
             applied_tags_ver: 0,
+            applied_compare_ver: 0,
             applied_at: None,
         }
     }
@@ -54,6 +58,8 @@ impl FilterState {
 pub struct Stats {
     pub files: Vec<(NodeId, u64)>,
     pub folders: Vec<(NodeId, u64)>,
+    /// Bytes per age bucket, most recent first.
+    pub ages: Vec<u64>,
     /// Bytes per class, the last entry is files without a class.
     pub classes: Vec<u64>,
     key: Option<(NodeId, u64, u64)>,
@@ -64,7 +70,7 @@ pub struct Stats {
 #[derive(Clone, Copy, Debug)]
 pub struct ViewOpts {
     pub detail: u32,
-    pub class_colors: bool,
+    pub file_colors: FileColors,
     pub show_free: bool,
     pub show_unknown: bool,
 }
@@ -74,7 +80,7 @@ impl ViewOpts {
     pub fn from_config(cfg: &Config) -> Self {
         ViewOpts {
             detail: cfg.detail,
-            class_colors: cfg.class_colors,
+            file_colors: cfg.file_colors,
             show_free: cfg.show_free,
             show_unknown: cfg.show_unknown,
         }
@@ -87,6 +93,7 @@ pub struct Restore {
     root: Vec<String>,
     selection: Option<Vec<String>>,
     filter: String,
+    compare: Option<Base>,
 }
 
 fn names_to(tree: &Tree, mut id: NodeId) -> Vec<String> {
@@ -163,6 +170,12 @@ pub struct Session {
     pub tags: Tags,
     pub tags_ver: u64,
     pub filter: FilterState,
+    /// Compare mode: the snapshot and the comparison against it.
+    pub compare: Option<CompareState>,
+    /// Incremented whenever compare mode or its comparison changed.
+    pub compare_ver: u64,
+    /// When the scan started (FILETIME).
+    pub started: i64,
     stats: Stats,
     restore: Option<Restore>,
 }
@@ -186,6 +199,9 @@ impl Session {
             tags: Tags::new(),
             tags_ver: 0,
             filter: FilterState::new(),
+            compare: None,
+            compare_ver: 0,
+            started: fmt::filetime_now(),
             stats: Stats::default(),
             restore: None,
         }
@@ -198,6 +214,7 @@ impl Session {
             root: names_to(tree, self.root),
             selection: self.selection.map(|id| names_to(tree, id)),
             filter: self.filter.text.clone(),
+            compare: self.compare.as_ref().map(|c| c.base.clone()),
         }
     }
 
@@ -207,9 +224,15 @@ impl Session {
         self.restore = Some(restore);
     }
 
-    /// Moves the view root and selection back to what a rescan replaced, when they still exist.
-    pub fn finish_restore(&mut self) {
-        let Some(r) = self.restore.take() else { return };
+    /// Moves the view root and selection back to what a rescan replaced, when they still exist,
+    /// and compares against the same snapshot again.
+    pub fn finish_restore(&mut self, classes: &FileClasses) {
+        let Some(mut r) = self.restore.take() else {
+            return;
+        };
+        if let Some(base) = r.compare.take() {
+            self.set_compare(Some(base), classes);
+        }
         let tree = self.scan.tree();
         let root = find_by_names(tree, &r.root).filter(|&n| tree.get(n).kind != NodeKind::File);
         let selection = r.selection.and_then(|names| find_by_names(tree, &names));
@@ -245,6 +268,28 @@ impl Session {
         self.refresh_filter(classes);
     }
 
+    /// Path of a node relative to the scan root, separated by `\`.
+    pub fn rel_path(&self, id: NodeId) -> String {
+        names_to(self.scan.tree(), id).join("\\")
+    }
+
+    /// Drops a path removed by the app itself, like a watcher removal; a no-op once it is gone.
+    pub fn forget_path(&mut self, rel: &str, classes: &FileClasses) {
+        if self.scan.running {
+            return;
+        }
+        let cluster = self
+            .scan
+            .volume
+            .as_ref()
+            .map_or(DEFAULT_CLUSTER, |v| v.cluster_size);
+        let event = WatchEvent {
+            path: rel.into(),
+            kind: WatchKind::Removed,
+        };
+        self.apply_live(&mut LiveUpdater::new(cluster), &[event], classes);
+    }
+
     /// Moves the view root, selection and history off removed nodes onto their nearest surviving ancestor.
     fn fix_refs(&mut self, survivors: &HashMap<NodeId, NodeId>) {
         let tree = self.scan.tree();
@@ -265,6 +310,53 @@ impl Session {
         self.filter.dirty = true;
         self.refresh_filter(classes);
         self.stats.key = None;
+    }
+
+    // ----- compare -----
+
+    /// Enters compare mode against a snapshot, or leaves it with `None`.
+    pub fn set_compare(&mut self, base: Option<Base>, classes: &FileClasses) {
+        let ver = self.scan.version;
+        self.compare = base.map(|b| CompareState::new(b, self.scan.tree(), ver));
+        self.compare_changed(classes);
+    }
+
+    /// Brings the comparison up to date with the tree, throttled unless `now`.
+    pub fn refresh_compare(&mut self, now: bool, classes: &FileClasses) {
+        let ver = self.scan.version;
+        let tree = self.scan.tree();
+        if let Some(c) = self.compare.as_mut()
+            && c.refresh(tree, ver, now)
+        {
+            self.compare_changed(classes);
+        }
+    }
+
+    fn compare_changed(&mut self, classes: &FileClasses) {
+        self.compare_ver += 1;
+        self.stats.key = None;
+        if self.filter.filter.uses_compare() {
+            self.filter.dirty = true;
+        }
+        self.refresh_filter(classes);
+    }
+
+    /// The comparison, when the deleted pseudo-items are shown: always without a filter, else with `is:deleted`.
+    pub fn ghosts(&self) -> Option<&diskmap_core::compare::Compare> {
+        let c = self.compare.as_ref()?;
+        let f = &self.filter;
+        (f.filtered.is_none() || f.filter.shows_deleted()).then_some(&c.map)
+    }
+
+    /// Sizes for the layout: [`Session::sizes`] plus deleted bytes in compare mode.
+    pub fn layout_sizes(&self) -> Sizes<'_> {
+        let Some(map) = self.ghosts() else {
+            return self.sizes();
+        };
+        match &self.filter.filtered {
+            None => Sizes::Plus(map.below_slice()),
+            Some(f) => Sizes::SlicePlus(&f.sizes, map.below_slice()),
+        }
     }
 
     /// Sizes used for layout and statistics: filtered when a filter is active.
@@ -441,7 +533,9 @@ impl Session {
         let fs = &mut self.filter;
         let tree_changed = fs.applied_tree_ver != self.scan.version;
         let tags_changed = fs.filter.uses_tags() && fs.applied_tags_ver != self.tags_ver;
-        let stale = (tree_changed || tags_changed) && !fs.filter.is_void();
+        let compare_changed =
+            fs.filter.uses_compare() && fs.applied_compare_ver != self.compare_ver;
+        let stale = (tree_changed || tags_changed || compare_changed) && !fs.filter.is_void();
         let throttled = self.scan.running
             && !fs.dirty
             && fs.applied_at.is_some_and(|t| t.elapsed() < SCAN_REFRESH);
@@ -451,6 +545,7 @@ impl Session {
         fs.dirty = false;
         fs.applied_tree_ver = self.scan.version;
         fs.applied_tags_ver = self.tags_ver;
+        fs.applied_compare_ver = self.compare_ver;
         fs.applied_at = Some(Instant::now());
         fs.ver += 1;
         if fs.filter.is_void() {
@@ -462,6 +557,7 @@ impl Session {
             tags: &self.tags,
             classes,
             now: fmt::filetime_now(),
+            compare: self.compare.as_ref().map(|c| &c.map),
         };
         let result = fs.filter.apply(self.scan.tree(), &ctx);
         fs.bold = result.bold_dirs.iter().copied().collect();
@@ -491,6 +587,8 @@ impl Session {
         let mut files = BinaryHeap::new();
         let mut folders = BinaryHeap::new();
         let mut per_class = vec![0u64; classes.classes().len() + 1];
+        let mut per_age = vec![0u64; AGE_BUCKETS];
+        let now = fmt::filetime_now();
         let mut stack = vec![self.root];
         while let Some(id) = stack.pop() {
             let size = sizes.get(tree, id);
@@ -503,6 +601,7 @@ impl Session {
                     .class_of(tree.name(id))
                     .unwrap_or(per_class.len() - 1);
                 per_class[c] += size;
+                per_age[usize::from(age_bucket(tree.times(id).mtime, now))] += size;
             } else {
                 if id != self.root {
                     push_top(&mut folders, size, id);
@@ -513,6 +612,7 @@ impl Session {
         Stats {
             files: into_sorted(files),
             folders: into_sorted(folders),
+            ages: per_age,
             classes: per_class,
             key: Some(key),
             at: Some(Instant::now()),
@@ -613,7 +713,7 @@ mod tests {
         old.select(Some(file));
         let mut fresh = scanned(dir.path());
         fresh.restore_after_scan(old.remember(), &FileClasses::default());
-        fresh.finish_restore();
+        fresh.finish_restore(&FileClasses::default());
         assert_eq!(
             fresh.root,
             find_by_names(fresh.scan.tree(), &["a"]).expect("a")

@@ -2,17 +2,27 @@
 
 use crate::appearance;
 use crate::args::{Args, Flags};
-use crate::config::{ClassDef, Config, class_defs, hex};
+use crate::compare::under;
+use crate::config::{ClassDef, Config, FileColors, Schedule, class_defs, hex, same_path};
 use crate::elevate;
 use crate::fmt;
-use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID};
+use crate::log;
+use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID, deleted_folder};
+use crate::paths;
+use crate::scheduler;
 use crate::session::{Session, find_by_names};
 use crate::shell;
 use crate::state::{
-    AppState, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
+    AppState, Inner, Status, TabId, node_id, start_rescan, start_scan, start_view_rescan, status,
 };
+use crate::timeline;
+use crate::update::{self, UpdateInfo};
 use crate::watch;
+use diskmap_core::age::age_bucket;
 use diskmap_core::classes::{FileClasses, OTHER_COLOR};
+use diskmap_core::diff::{DiffEntry, Status as DeltaStatus};
+use diskmap_core::export::{self, Format, Row, Source};
+use diskmap_core::log::Level;
 use diskmap_core::tags::Tag;
 use diskmap_core::tree::{NodeId, NodeKind};
 use diskmap_scan::volume::{DriveKind, list_drives};
@@ -20,9 +30,43 @@ use serde::Serialize;
 use std::io::Write;
 use tauri::{AppHandle, State, WebviewWindow};
 
-type Res<T> = Result<T, String>;
+/// Result of a command.
+pub type Res<T> = Result<T, CmdError>;
 
-const NO_SESSION: &str = "No scan";
+/// Error of a command, sent to the front end as its text. Creating one logs it.
+#[derive(Debug)]
+pub struct CmdError(String);
+
+impl Serialize for CmdError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.0)
+    }
+}
+
+impl From<String> for CmdError {
+    fn from(message: String) -> Self {
+        log::error("command", message.clone());
+        CmdError(message)
+    }
+}
+
+impl From<&str> for CmdError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+/// An error that is expected in normal use and not logged, such as a call racing a closed tab.
+pub struct Quiet(&'static str);
+
+impl From<Quiet> for CmdError {
+    fn from(q: Quiet) -> Self {
+        CmdError(q.0.to_string())
+    }
+}
+
+/// Error of a command on a tab without a scan.
+pub const NO_SESSION: Quiet = Quiet("No scan");
 
 /// Name and colour of a file class.
 #[derive(Serialize)]
@@ -78,7 +122,7 @@ pub async fn boot(state: State<'_, AppState>) -> Res<Boot> {
 /// Shows the main window; it starts hidden so the first frame is already themed.
 #[tauri::command]
 pub async fn show_window(window: WebviewWindow) -> Res<()> {
-    window.show().map_err(|e| e.to_string())
+    Ok(window.show().map_err(|e| e.to_string())?)
 }
 
 /// Stores new settings, applies their side effects and returns the class list.
@@ -171,16 +215,24 @@ pub async fn layout(
     height: u32,
     dpr: f32,
 ) -> Res<tauri::ipc::Response> {
-    let g = state.lock();
-    let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+    let mut g = state.lock();
+    let Inner {
+        sessions,
+        classes,
+        cfg,
+        ..
+    } = &mut *g;
+    let s = sessions.get_mut(&tab).ok_or(NO_SESSION)?;
+    s.refresh_compare(false, classes);
     let cx = PaintCtx {
-        classes: &g.classes,
-        min_tile: g.cfg.min_tile,
-        text_scale: g.cfg.text_scale(),
+        classes,
+        min_tile: cfg.min_tile,
+        text_scale: cfg.text_scale(),
         width,
         height,
         dpr,
-        highlight: g.cfg.highlight_changes,
+        highlight: cfg.highlight_changes,
+        now: fmt::filetime_now(),
     };
     Ok(tauri::ipc::Response::new(paint::build(s, &cx)))
 }
@@ -282,7 +334,17 @@ pub async fn set_detail(state: State<'_, AppState>, tab: TabId, detail: u32) -> 
     with_session(&state, tab, |s| s.view.detail = detail.clamp(1, 12))
 }
 
-/// Flips one of the view toggles of a tab: `classes`, `free` or `unknown`.
+/// Sets how the file tiles of a tab are coloured.
+#[tauri::command]
+pub async fn set_file_colors(
+    state: State<'_, AppState>,
+    tab: TabId,
+    mode: FileColors,
+) -> Res<Status> {
+    with_session(&state, tab, |s| s.view.file_colors = mode)
+}
+
+/// Flips one of the view toggles of a tab: `free` or `unknown`.
 #[tauri::command]
 pub async fn set_toggle(
     state: State<'_, AppState>,
@@ -293,10 +355,9 @@ pub async fn set_toggle(
     let mut g = state.lock();
     let s = g.sessions.get_mut(&tab).ok_or(NO_SESSION)?;
     match kind.as_str() {
-        "classes" => s.view.class_colors = on,
         "free" => s.view.show_free = on,
         "unknown" => s.view.show_unknown = on,
-        _ => return Err(format!("Unknown toggle {kind}")),
+        _ => return Err(format!("Unknown toggle {kind}").into()),
     }
     Ok(status(&g, tab))
 }
@@ -316,7 +377,57 @@ pub struct Details {
     accessed: String,
     items: Option<u32>,
     class: String,
+    /// Age bucket of a file, most recent 0.
+    age: Option<u8>,
     tag: u8,
+    pinned: bool,
+    /// Compare mode: size in the snapshot, empty when new.
+    old: String,
+    /// Compare mode: size change.
+    delta: String,
+    /// Compare mode: `New`, `Grown`, `Shrunk`, `Same` or `Deleted`.
+    change: &'static str,
+}
+
+fn status_name(st: DeltaStatus) -> &'static str {
+    match st {
+        DeltaStatus::New => "New",
+        DeltaStatus::Deleted => "Deleted",
+        DeltaStatus::Grown => "Grown",
+        DeltaStatus::Shrunk => "Shrunk",
+        DeltaStatus::Same => "Same",
+    }
+}
+
+/// Old size, change and status of a node in compare mode.
+fn add_delta(s: &Session, id: NodeId, d: &mut Details) {
+    let Some(c) = s.compare.as_ref() else { return };
+    let tree = s.scan.tree();
+    d.old = c.map.old_size(id).map_or_else(String::new, fmt::size);
+    d.delta = fmt::delta(c.map.delta(tree, id));
+    d.change = status_name(c.map.status(tree, id));
+}
+
+fn deleted_details(s: &Session, node: i32, folder: NodeId) -> Res<Details> {
+    let tree = s.scan.tree();
+    let c = s.compare.as_ref().ok_or("Not comparing")?;
+    if folder.0 as usize >= tree.len() {
+        return Err("Unknown node".into());
+    }
+    let bytes = c.map.deleted(folder);
+    Ok(Details {
+        id: node,
+        name: "Deleted".into(),
+        path: tree.full_path(folder),
+        kind: "deleted",
+        size: fmt::size(bytes),
+        disk: fmt::size(bytes),
+        items: Some(c.map.deleted_items(folder)),
+        old: fmt::size(bytes),
+        delta: fmt::delta(-(bytes.min(i64::MAX as u64) as i64)),
+        change: "Deleted",
+        ..Details::default()
+    })
 }
 
 fn special_details(s: &Session, id: i32) -> Details {
@@ -345,6 +456,9 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
     if node == FREE_ID || node == UNKNOWN_ID {
         return Ok(special_details(s, node));
     }
+    if let Some(folder) = deleted_folder(node) {
+        return deleted_details(s, node, folder);
+    }
     let id = node_id(s, node).ok_or("Unknown node")?;
     let tree = s.scan.tree();
     let n = tree.get(id);
@@ -361,10 +475,12 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
     } else {
         String::new()
     };
-    Ok(Details {
+    let path = tree.full_path(id);
+    let mut d = Details {
         id: node,
         name: tree.name(id).to_string(),
-        path: tree.full_path(id),
+        pinned: !is_file && g.cfg.is_pinned(&path),
+        path,
         kind: if is_file { "file" } else { "folder" },
         size: fmt::size(logical),
         disk: fmt::size(size),
@@ -374,8 +490,12 @@ pub async fn details(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<D
         accessed: fmt::date_time(times.atime),
         items: (!is_file).then(|| n.child_count()),
         class,
+        age: is_file.then(|| age_bucket(times.mtime, fmt::filetime_now())),
         tag: s.tags.raw(id),
-    })
+        ..Details::default()
+    };
+    add_delta(s, id, &mut d);
+    Ok(d)
 }
 
 /// One row of the largest-items lists.
@@ -402,6 +522,69 @@ pub struct StatsOut {
     files: Vec<Top>,
     folders: Vec<Top>,
     classes: Vec<ClassRow>,
+    /// Bytes per age bucket, most recent first.
+    ages: Vec<AgeRow>,
+    /// Compare mode: largest changes under the view root.
+    changes: Option<Changes>,
+}
+
+/// One row of the changes lists.
+#[derive(Serialize)]
+pub struct ChangeRow {
+    /// The node, or its nearest existing folder when deleted.
+    id: Option<u32>,
+    name: String,
+    parent: String,
+    delta: String,
+    change: &'static str,
+}
+
+/// Top growers and shrinkers.
+#[derive(Serialize)]
+pub struct Changes {
+    growers: Vec<ChangeRow>,
+    shrinkers: Vec<ChangeRow>,
+}
+
+const CHANGES_N: usize = 10;
+
+fn change_row(tree: &diskmap_core::tree::Tree, e: &DiffEntry) -> ChangeRow {
+    let (parent, name) = e.path.rsplit_once('\\').unwrap_or(("", &e.path));
+    let id = tree.find_path(&e.path).or_else(|| tree.find_path(parent));
+    ChangeRow {
+        id: id.map(|n| n.0),
+        name: name.to_string(),
+        parent: parent.to_string(),
+        delta: fmt::delta(e.delta()),
+        change: status_name(e.status),
+    }
+}
+
+/// Largest changes under the view root, when comparing.
+fn changes(s: &mut Session) -> Option<Changes> {
+    let root = s.rel_path(s.root);
+    let ver = s.scan.version;
+    let tree = s.scan.tree();
+    let m = s.compare.as_mut()?.movers(tree, ver);
+    let rows = |list: &[usize]| {
+        list.iter()
+            .map(|&i| &m.entries[i])
+            .filter(|e| under(&e.path, &root))
+            .take(CHANGES_N)
+            .map(|e| change_row(tree, e))
+            .collect()
+    };
+    Some(Changes {
+        growers: rows(&m.growers),
+        shrinkers: rows(&m.shrinkers),
+    })
+}
+
+/// Bytes of one age bucket.
+#[derive(Serialize)]
+pub struct AgeRow {
+    size: String,
+    share: f32,
 }
 
 fn tops(s: &Session, list: &[(NodeId, u64)]) -> Vec<Top> {
@@ -427,6 +610,14 @@ pub async fn stats(state: State<'_, AppState>, tab: TabId) -> Res<StatsOut> {
     let st = s.stats(&classes);
     let (files, folders, per_class) = (st.files.clone(), st.folders.clone(), st.classes.clone());
     let total: u64 = per_class.iter().sum::<u64>().max(1);
+    let ages = st
+        .ages
+        .iter()
+        .map(|&bytes| AgeRow {
+            size: fmt::size(bytes),
+            share: bytes as f32 / total as f32,
+        })
+        .collect();
     let mut rows: Vec<ClassRow> = per_class
         .iter()
         .enumerate()
@@ -450,6 +641,8 @@ pub async fn stats(state: State<'_, AppState>, tab: TabId) -> Res<StatsOut> {
         files: tops(s, &files),
         folders: tops(s, &folders),
         classes: rows,
+        ages,
+        changes: changes(s),
     })
 }
 
@@ -483,6 +676,65 @@ pub async fn reveal_node(state: State<'_, AppState>, tab: TabId, node: i32) -> R
     Ok(())
 }
 
+/// Opens a terminal in a folder, or in the folder holding a file.
+#[tauri::command]
+pub async fn terminal_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<()> {
+    let dir = {
+        let g = state.lock();
+        let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+        let id = node_id(s, node).ok_or("Unknown node")?;
+        let tree = s.scan.tree();
+        let dir = match tree.get(id).kind {
+            NodeKind::File => tree.parent(id).unwrap_or(id),
+            _ => id,
+        };
+        tree.full_path(dir)
+    };
+    Ok(shell::terminal(&dir)?)
+}
+
+/// Shows the Explorer Properties dialog of a node.
+#[tauri::command]
+pub async fn properties_node(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    tab: TabId,
+    node: i32,
+) -> Res<()> {
+    let path = path_of(&state, tab, node)?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(shell::properties(&path));
+    })
+    .map_err(|e| e.to_string())?;
+    Ok(rx.recv().map_err(|e| e.to_string())??)
+}
+
+/// Moves a node to the Recycle Bin and drops it from the tree.
+#[tauri::command]
+pub async fn recycle_node(state: State<'_, AppState>, tab: TabId, node: i32) -> Res<Status> {
+    let (path, rel) = {
+        let g = state.lock();
+        let s = g.sessions.get(&tab).ok_or(NO_SESSION)?;
+        let id = node_id(s, node).ok_or("Unknown node")?;
+        if id == s.scan.tree().root() {
+            return Err("Scan root".into());
+        }
+        (s.scan.tree().full_path(id), s.rel_path(id))
+    };
+    tauri::async_runtime::spawn_blocking(move || shell::recycle(&path))
+        .await
+        .map_err(|e| e.to_string())??;
+    let mut g = state.lock();
+    let Inner {
+        sessions, classes, ..
+    } = &mut *g;
+    if let Some(s) = sessions.get_mut(&tab) {
+        s.forget_path(&rel, classes);
+    }
+    Ok(status(&g, tab))
+}
+
 /// A mounted drive for the start screen.
 #[derive(Serialize)]
 pub struct DriveRow {
@@ -493,21 +745,35 @@ pub struct DriveRow {
     share: f32,
 }
 
-/// A recent scan for the start screen.
+/// A recent scan or a pinned folder for the start screen.
 #[derive(Serialize)]
 pub struct RecentRow {
     path: String,
     size: String,
+    pinned: bool,
 }
 
 /// Start screen content.
 #[derive(Serialize)]
 pub struct StartInfo {
     drives: Vec<DriveRow>,
+    pins: Vec<RecentRow>,
     recent: Vec<RecentRow>,
 }
 
-fn kind_name(kind: DriveKind) -> &'static str {
+fn path_row(cfg: &Config, path: &str, size: u64, pinned: bool) -> RecentRow {
+    RecentRow {
+        path: path.to_string(),
+        size: if size > 0 {
+            fmt::size(size)
+        } else {
+            String::new()
+        },
+        pinned: pinned || cfg.is_pinned(path),
+    }
+}
+
+pub fn kind_name(kind: DriveKind) -> &'static str {
     match kind {
         DriveKind::Fixed => "Fixed",
         DriveKind::Removable => "Removable",
@@ -516,7 +782,7 @@ fn kind_name(kind: DriveKind) -> &'static str {
     }
 }
 
-/// Drives and recent scans.
+/// Drives, pinned folders and recent scans.
 #[tauri::command]
 pub async fn start_info(state: State<'_, AppState>) -> Res<StartInfo> {
     let drives = list_drives()
@@ -532,21 +798,33 @@ pub async fn start_info(state: State<'_, AppState>) -> Res<StartInfo> {
             }
         })
         .collect();
-    let recent = state
-        .lock()
-        .cfg
+    let g = state.lock();
+    let cfg = &g.cfg;
+    let pins = cfg
+        .pins
+        .iter()
+        .map(|p| path_row(cfg, p, cfg.known_size(p), true))
+        .collect();
+    let recent = cfg
         .recent
         .iter()
-        .map(|r| RecentRow {
-            path: r.path.clone(),
-            size: if r.size > 0 {
-                fmt::size(r.size)
-            } else {
-                String::new()
-            },
-        })
+        .map(|r| path_row(cfg, &r.path, r.size, false))
         .collect();
-    Ok(StartInfo { drives, recent })
+    Ok(StartInfo {
+        drives,
+        pins,
+        recent,
+    })
+}
+
+/// Pins or unpins a folder; returns whether it is pinned now.
+#[tauri::command]
+pub async fn set_pin(state: State<'_, AppState>, path: String, on: bool) -> Res<bool> {
+    let mut g = state.lock();
+    if g.cfg.set_pin(&path, on) {
+        g.cfg.save();
+    }
+    Ok(g.cfg.is_pinned(&path))
 }
 
 /// Relaunches elevated with the paths of the open tabs and quits when that worked; false when it was cancelled.
@@ -573,6 +851,117 @@ pub async fn browse(window: WebviewWindow) -> Res<Option<String>> {
     Ok(picked.map(|p| p.to_string_lossy().into_owned()))
 }
 
+/// Rows of an export scope: `view`, `selection` (or `node` when given), `files` or `folders`.
+fn export_rows(
+    s: &mut Session,
+    classes: &FileClasses,
+    scope: &str,
+    depth: Option<u32>,
+    node: Option<i32>,
+) -> Res<Vec<Row>> {
+    let flat = match scope {
+        "files" => Some(s.stats(classes).files.clone()),
+        "folders" => Some(s.stats(classes).folders.clone()),
+        _ => None,
+    };
+    let src = Source {
+        tree: s.scan.tree(),
+        tags: Some(&s.tags),
+        filtered: s.filter.filtered.as_ref(),
+    };
+    if let Some(list) = flat {
+        let ids: Vec<NodeId> = list.into_iter().map(|(id, _)| id).collect();
+        return Ok(src.list(&ids));
+    }
+    let root = match scope {
+        "view" => s.root,
+        "selection" => node
+            .and_then(|n| node_id(s, n))
+            .or(s.selection)
+            .ok_or("No selection")?,
+        _ => return Err(format!("Unknown scope {scope}").into()),
+    };
+    Ok(src.subtree(root, depth))
+}
+
+/// Default file name: `diskmap-<root>-<date>.<ext>`.
+fn export_name(s: &Session, format: Format) -> String {
+    let name: String = s
+        .scan
+        .tree()
+        .name(s.root)
+        .chars()
+        .map(|c| {
+            if c.is_control() || "\\/:*?\"<>|".contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let name = name.trim_matches(['_', ' ', '.']);
+    let root = if name.is_empty() { "scan" } else { name };
+    let date = export::iso_utc(fmt::filetime_now());
+    let date = date.get(..10).unwrap_or_default();
+    format!("diskmap-{root}-{date}.{}", format.ext())
+}
+
+/// Asks for a file to save to.
+async fn save_dialog(window: WebviewWindow, name: String, format: Format) -> Res<Option<String>> {
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        let ext = format.ext();
+        rfd::FileDialog::new()
+            .set_parent(&window)
+            .set_file_name(name)
+            .add_filter(ext.to_uppercase(), &[ext])
+            .save_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(picked.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Exports a scope of a tab (`view`, `selection`, `files`, `folders`) as `csv` or `json`, down to `depth`
+/// levels (no limit when absent), honouring the active filter. Without `path` a save dialog asks.
+/// Returns the written path, `None` when the dialog was cancelled.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn export(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    tab: TabId,
+    scope: String,
+    format: String,
+    depth: Option<u32>,
+    node: Option<i32>,
+    path: Option<String>,
+) -> Res<Option<String>> {
+    let format = Format::parse(&format).ok_or_else(|| format!("Unknown format {format}"))?;
+    let path = match path {
+        Some(p) => p,
+        None => {
+            let name = {
+                let g = state.lock();
+                export_name(g.sessions.get(&tab).ok_or(NO_SESSION)?, format)
+            };
+            match save_dialog(window, name, format).await? {
+                Some(p) => p,
+                None => return Ok(None),
+            }
+        }
+    };
+    let mut bytes = Vec::new();
+    {
+        let mut g = state.lock();
+        let classes = g.classes.clone();
+        let s = g.sessions.get_mut(&tab).ok_or(NO_SESSION)?;
+        let rows = export_rows(s, &classes, &scope, depth, node)?;
+        export::write(&mut bytes, format, &rows).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(Some(path))
+}
+
 /// Appends a timing line to the file named by `DISKMAP_PERF`, when set.
 #[tauri::command]
 pub async fn log_perf(line: String) -> Res<()> {
@@ -585,4 +974,206 @@ pub async fn log_perf(line: String) -> Res<()> {
         let _ = writeln!(f, "{line}");
     }
     Ok(())
+}
+
+/// Log entries held, oldest first.
+#[tauri::command]
+pub async fn log_entries(state: State<'_, AppState>) -> Res<Vec<log::Entry>> {
+    Ok(state.log.entries())
+}
+
+/// Forgets the log entries held.
+#[tauri::command]
+pub async fn log_clear(state: State<'_, AppState>) -> Res<()> {
+    state.log.clear();
+    Ok(())
+}
+
+/// Logs an entry from the front end, e.g. an uncaught script error.
+#[tauri::command]
+pub async fn log_js(state: State<'_, AppState>, level: String, message: String) -> Res<()> {
+    state.log.push(Level::parse(&level), "ui", message);
+    Ok(())
+}
+
+/// Application facts for the About section.
+#[derive(Serialize)]
+pub struct About {
+    name: &'static str,
+    version: &'static str,
+    license: &'static str,
+    config: String,
+    target: String,
+    profile: &'static str,
+    portable: bool,
+}
+
+/// Version, license, configuration path and build of this binary.
+#[tauri::command]
+pub async fn about() -> Res<About> {
+    Ok(About {
+        name: env!("CARGO_PKG_NAME"),
+        version: env!("CARGO_PKG_VERSION"),
+        license: env!("CARGO_PKG_LICENSE"),
+        config: paths::config_path()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        target: format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
+        profile: if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
+        portable: paths::is_portable(),
+    })
+}
+
+/// Opens a project page in the default browser: `repo`, `issues` or `release` (the latest release).
+#[tauri::command]
+pub async fn open_link(link: String) -> Res<()> {
+    let repo = env!("CARGO_PKG_REPOSITORY");
+    let url = match link.as_str() {
+        "repo" => repo.to_string(),
+        "issues" => format!("{repo}/issues"),
+        "release" => format!("{repo}/releases/latest"),
+        _ => return Err(format!("Unknown link: {link}").into()),
+    };
+    shell::open(&url);
+    Ok(())
+}
+
+/// Shows the configuration file in Explorer, or its folder when the file does not exist yet.
+#[tauri::command]
+pub async fn reveal_config() -> Res<()> {
+    let path = paths::config_path().ok_or("No config path")?;
+    if path.exists() {
+        shell::reveal(&path.to_string_lossy());
+    } else if let Some(dir) = path.parent() {
+        shell::open(&dir.to_string_lossy());
+    }
+    Ok(())
+}
+
+/// Checks the release endpoint for a newer version; a failure is a `failed` state, not an error.
+#[tauri::command]
+pub async fn update_check(app: AppHandle) -> Res<UpdateInfo> {
+    Ok(update::check(&app).await)
+}
+
+/// Downloads and installs the available update, then restarts. Installed builds only.
+#[tauri::command]
+pub async fn update_install(app: AppHandle) -> Res<()> {
+    Ok(update::install(&app).await?)
+}
+
+/// The schedule settings, whether the task exists, and the folders it can snapshot.
+#[derive(Serialize)]
+pub struct ScheduleInfo {
+    config: Schedule,
+    /// The task is registered in Task Scheduler.
+    exists: bool,
+    /// Fixed drives and pinned folders.
+    choices: Vec<String>,
+    /// This process runs as administrator.
+    admin: bool,
+}
+
+fn schedule_info(config: Schedule, pins: Vec<String>, exists: bool) -> ScheduleInfo {
+    let mut choices: Vec<String> = list_drives()
+        .into_iter()
+        .filter(|d| d.kind == DriveKind::Fixed)
+        .map(|d| d.root)
+        .collect();
+    for r in pins.into_iter().chain(config.roots.iter().cloned()) {
+        if !choices.iter().any(|c| same_path(c, &r)) {
+            choices.push(r);
+        }
+    }
+    ScheduleInfo {
+        config,
+        exists,
+        choices,
+        admin: diskmap_scan::is_elevated(),
+    }
+}
+
+async fn task_exists() -> Res<bool> {
+    Ok(tauri::async_runtime::spawn_blocking(scheduler::exists)
+        .await
+        .map_err(|e| e.to_string())?)
+}
+
+/// Schedule settings and the state of the task.
+#[tauri::command]
+pub async fn schedule_get(state: State<'_, AppState>) -> Res<ScheduleInfo> {
+    let (config, pins) = {
+        let g = state.lock();
+        (g.cfg.schedule.clone(), g.cfg.pins.clone())
+    };
+    Ok(schedule_info(config, pins, task_exists().await?))
+}
+
+/// Creates, replaces or deletes the task, then stores the settings. Nothing is stored on failure.
+#[tauri::command]
+pub async fn schedule_set(state: State<'_, AppState>, schedule: Schedule) -> Res<ScheduleInfo> {
+    let mut new = schedule;
+    new.sanitize();
+    let (old, pins) = {
+        let g = state.lock();
+        (g.cfg.schedule.clone(), g.cfg.pins.clone())
+    };
+    let task = new.clone();
+    tauri::async_runtime::spawn_blocking(move || scheduler::apply(&old, &task))
+        .await
+        .map_err(|e| e.to_string())??;
+    {
+        let mut g = state.lock();
+        g.cfg.schedule = new.clone();
+        g.cfg.save();
+    }
+    Ok(schedule_info(new, pins, task_exists().await?))
+}
+
+/// Totals of one timeline point.
+#[derive(Serialize)]
+pub struct TimelinePoint {
+    /// Unix seconds, UTC.
+    pub time: i64,
+    pub allocated: u64,
+    pub logical: u64,
+    pub files: u64,
+}
+
+/// Root totals of every timeline point of a root, oldest first; unreadable points are skipped.
+pub fn timeline_points(root: &str) -> Vec<TimelinePoint> {
+    timeline::list(root)
+        .into_iter()
+        .filter_map(|p| {
+            let r = timeline::load_root(&p.path)
+                .map_err(|e| log::warn("timeline", e))
+                .ok()?;
+            Some(TimelinePoint {
+                time: p.time,
+                allocated: r.allocated,
+                logical: r.logical,
+                files: r.files,
+            })
+        })
+        .collect()
+}
+
+/// The timeline points of a root, oldest first.
+#[tauri::command]
+pub async fn timeline(root: String) -> Res<Vec<TimelinePoint>> {
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || timeline_points(&root))
+            .await
+            .map_err(|e| e.to_string())?,
+    )
+}
+
+/// The most recent report lines, newest first (default 50).
+#[tauri::command]
+pub async fn reports(limit: Option<usize>) -> Res<Vec<timeline::ReportLine>> {
+    Ok(timeline::reports(limit.unwrap_or(50)))
 }

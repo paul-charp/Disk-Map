@@ -1,5 +1,5 @@
 // Decoder of the binary paint list produced by `paint.rs`.
-export const F = { FILE: 1, DIR: 2, DRILLED: 4, FREE: 8, UNKNOWN: 16, SELECTED: 32, BOLD: 64, LABEL: 128 };
+export const F = { FILE: 1, DIR: 2, DRILLED: 4, FREE: 8, UNKNOWN: 16, SELECTED: 32, BOLD: 64, LABEL: 128, AGE: 2048, DELTA: 4096, DELETED: 8192 };
 export const TAG_SHIFT = 8;
 const HEADER_INTS = 4;
 const STRIDE = 8;

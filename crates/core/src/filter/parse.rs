@@ -1,7 +1,11 @@
 //! Filter string parser.
 
-use super::{AgeCond, AttrCond, Cmp, Filter, FilterError, Selector, SizeCond, TagSpec, TimeKind};
+use super::{
+    AgeCond, AttrCond, Cmp, DeltaCond, Filter, FilterError, Selector, SizeCond, TagSpec, TimeKind,
+    status_bit,
+};
 use crate::classes::FileClasses;
+use crate::diff::Status;
 
 const FILE_ATTRIBUTE_READONLY: u32 = 0x1;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
@@ -124,6 +128,26 @@ impl Filter {
             return Ok(());
         }
 
+        if let Some(word) = lower.strip_prefix("is:") {
+            let bit = status_bit(parse_status(word.trim())?);
+            if negated {
+                self.status_exclude |= bit;
+            } else {
+                self.status_include |= bit;
+            }
+            return Ok(());
+        }
+
+        if let Some(spec) = lower.strip_prefix("delta:") {
+            let (cmp, bytes) = parse_delta(spec.trim())?;
+            self.deltas.push(DeltaCond {
+                cmp,
+                bytes,
+                negated,
+            });
+            return Ok(());
+        }
+
         if lower.starts_with(":class:") {
             let name = body.get(7..).unwrap_or("").trim();
             let index = classes
@@ -227,6 +251,39 @@ impl Filter {
         }
         Ok(())
     }
+}
+
+fn parse_status(word: &str) -> Result<Status, String> {
+    Ok(match word {
+        "new" => Status::New,
+        "deleted" => Status::Deleted,
+        "grown" => Status::Grown,
+        "shrunk" => Status::Shrunk,
+        "same" => Status::Same,
+        _ => return Err(format!("unknown status '{word}'")),
+    })
+}
+
+/// `>1GB` or `<-100MB`: a comparison and a signed size.
+fn parse_delta(spec: &str) -> Result<(Cmp, i64), String> {
+    let cmp = match spec.chars().next() {
+        Some('>') => Cmp::Greater,
+        Some('<') => Cmp::Less,
+        _ => return Err("expected > or <".into()),
+    };
+    let rest = spec[1..].trim();
+    let (sign, rest) = match rest.strip_prefix('-') {
+        Some(r) => (-1.0, r.trim_start()),
+        None => (1.0, rest.strip_prefix('+').unwrap_or(rest).trim_start()),
+    };
+    let num_end = rest
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(rest.len());
+    let number: f64 = rest[..num_end]
+        .parse()
+        .map_err(|_| "expected a number".to_string())?;
+    let mult = size_unit(rest[num_end..].trim()).ok_or("expected a size unit")?;
+    Ok((cmp, (sign * number * mult).round() as i64))
 }
 
 fn size_unit(unit: &str) -> Option<f64> {

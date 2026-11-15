@@ -61,7 +61,7 @@ pub struct NewEntry<'a> {
 }
 
 /// Arena tree with one shared name buffer.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Tree {
     nodes: Vec<Node>,
     times: Vec<Times>,
@@ -357,7 +357,7 @@ impl Tree {
     }
 }
 
-fn names_equal(a: &str, b: &str) -> bool {
+pub(crate) fn names_equal(a: &str, b: &str) -> bool {
     if a.is_ascii() && b.is_ascii() {
         a.eq_ignore_ascii_case(b)
     } else {

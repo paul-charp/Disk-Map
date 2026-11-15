@@ -1,6 +1,6 @@
 # Filter grammar
 
-The filter field takes conditions separated by `;`. Empty conditions are ignored. Matching is done on files; a folder shows the sum of its matching files. A bad condition reports `condition: reason` and the previous filter stays active.
+The filter field takes conditions separated by `;`. Empty conditions are ignored. Matching is done on files; a folder shows the sum of its matching files. A bad condition reports `condition: reason` and the previous filter stays active. The Presets button applies a built-in or saved filter; the Syntax button inserts a condition.
 
 ```
 filter     = condition { ";" condition }
@@ -14,7 +14,8 @@ body       = mask | folder | comparison | tags | attrs | class
 
 - Name masks, tag conditions and class conditions are selectors: a file must match at least one positive selector (when there is any).
 - A negated selector (`|mask`, `|:class:...`, `|:tag:...`) excludes files that match it.
-- Size, age and attribute conditions must all hold.
+- Size, age, attribute and `delta:` conditions must all hold.
+- `is:` conditions match any of the listed statuses ([Compare](#compare)).
 - Folder masks: a file must be inside a folder matching every positive folder mask, and inside none matching a negated one.
 
 ## Name masks
@@ -122,3 +123,20 @@ Separators: `+` and `,` include, `-` excludes. A file matches when it has at lea
 | `\|:class:Audio` | Everything except audio |
 
 A class condition is a selector, so `:class:Video;:class:Audio` matches either class.
+
+## Compare
+
+Only in compare mode (a tab compared against a snapshot); outside it these conditions match nothing. Sizes are allocated sizes.
+
+`is:` followed by `new`, `grown`, `shrunk`, `same` or `deleted`. Several `is:` conditions match any of them; `|is:` excludes. No current file is deleted: `is:deleted` keeps the Deleted ghost items on the map (they are not filtered by other conditions).
+
+`delta:` followed by `>` or `<` and a signed size; a new file counts with its full size.
+
+| Filter | Matches |
+| --- | --- |
+| `is:new` | Files not in the snapshot |
+| `is:new;is:grown` | New or larger files |
+| `\|is:same` | Every changed file |
+| `delta:>1GB` | Grown by more than 1 GB |
+| `delta:<-100MB` | Shrunk by more than 100 MB |
+| `is:deleted` | Only the Deleted items |

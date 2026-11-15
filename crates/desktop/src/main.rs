@@ -5,15 +5,26 @@
 mod appearance;
 mod args;
 mod commands;
+mod compare;
 mod config;
+mod dashboard;
 mod elevate;
 mod fmt;
+mod headless;
+mod log;
 mod marks;
 mod paint;
+mod paths;
 mod scan;
+mod scheduler;
 mod session;
 mod shell;
+mod snapcmds;
+mod snapstore;
 mod state;
+mod timeline;
+mod toast;
+mod update;
 mod watch;
 
 use args::Args;
@@ -36,13 +47,23 @@ fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
 }
 
 fn main() {
+    log::info(
+        "app",
+        format!("diskmap {} started", env!("CARGO_PKG_VERSION")),
+    );
     let mut cfg = Config::load();
-    Args::from_env().apply(&mut cfg);
+    let args = Args::from_env();
+    args.apply(&mut cfg);
+    if !args.headless.roots.is_empty() {
+        std::process::exit(headless::run(&args.headless, &cfg));
+    }
     let startup = cfg.clone();
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(cfg))
         .on_window_event(on_window_event)
         .setup(move |app| {
+            log::get().attach(app.handle().clone());
             if let Some(w) = app.get_webview_window("main") {
                 appearance::apply(&w, &startup);
                 std::thread::spawn(move || {
@@ -74,15 +95,41 @@ fn main() {
             commands::set_filter,
             commands::set_detail,
             commands::set_toggle,
+            commands::set_file_colors,
             commands::details,
             commands::stats,
             commands::find_node,
             commands::open_node,
             commands::reveal_node,
+            commands::terminal_node,
+            commands::properties_node,
+            commands::recycle_node,
             commands::start_info,
+            commands::set_pin,
             commands::browse,
+            commands::export,
             commands::elevate,
             commands::log_perf,
+            commands::log_entries,
+            commands::log_clear,
+            commands::log_js,
+            commands::about,
+            commands::open_link,
+            commands::reveal_config,
+            commands::update_check,
+            commands::update_install,
+            commands::schedule_get,
+            commands::schedule_set,
+            commands::timeline,
+            commands::reports,
+            dashboard::dashboard,
+            snapcmds::snapshots,
+            snapcmds::save_snapshot,
+            snapcmds::delete_snapshot,
+            snapcmds::snapshot_store,
+            snapcmds::keep_snapshot,
+            snapcmds::reveal_snapshot,
+            snapcmds::compare,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

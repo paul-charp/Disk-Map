@@ -1,13 +1,22 @@
-// Test switches from the command line (--detail, --side, --zoom, --select, --hover, --tooltip), applied to the last tab.
+// Test switches from the command line (--detail, --side, --compare, --zoom, --select, --hover, --tooltip), applied to the last tab.
 import { api } from './api.js';
 
 const SETTLE_MS = 600;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Compares `tab` against a snapshot path or `latest`, the newest snapshot not taken by this scan; false when there is none. */
+export async function compareTo(app, tab, which) {
+  const list = await api.snapshots(tab.id).catch(() => []);
+  const path = which === 'latest' ? list.find((s) => !s.this_scan)?.path : which;
+  if (path) await app.compare(path, tab);
+  return !!path;
+}
+
 /** Applies the switches once the scan of `tab` is done. */
 export async function applyScanFlags(app, tab, flags) {
   if (flags.side && !app.cfg.show_side) await app.toggle('side');
   if (flags.detail) await app.act(api.setDetail(tab.id, flags.detail));
+  if (flags.compare) await compareTo(app, tab, flags.compare);
   const node = async (path) => (path ? api.findNode(tab.id, path) : null);
   const zoom = await node(flags.zoom);
   if (zoom != null) await app.zoom(zoom);
