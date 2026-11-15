@@ -14,7 +14,8 @@ body       = mask | folder | comparison | tags | attrs | class
 
 - Name masks, tag conditions and class conditions are selectors: a file must match at least one positive selector (when there is any).
 - A negated selector (`|mask`, `|:class:...`, `|:tag:...`) excludes files that match it.
-- Size, age and attribute conditions must all hold.
+- Size, age, attribute and `delta:` conditions must all hold.
+- `is:` conditions match any of the listed statuses ([Compare](#compare)).
 - Folder masks: a file must be inside a folder matching every positive folder mask, and inside none matching a negated one.
 
 ## Name masks

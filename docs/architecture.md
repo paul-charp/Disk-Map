@@ -4,10 +4,29 @@
 
 | Crate | Role |
 | --- | --- |
-| `crates/core` (`diskmap-core`) | Arena `Tree`, squarified layout, filter grammar and evaluation, colour tags, file classes, snapshot and timeline formats, diff (`docs/snapshots.md`). No I/O. |
+| `crates/core` (`diskmap-core`) | Arena `Tree`, squarified layout, filter grammar and evaluation, colour tags, file classes, age buckets, snapshot and timeline formats, diff, compare, retention, reports, task XML (`docs/snapshots.md`), CSV and JSON export, log ring. No I/O. |
 | `crates/scan` (`diskmap-scan`) | Walk and MFT scan backends, `TreeBuilder`, `ReadDirectoryChangesW` watcher, `LiveUpdater`, volume and drive info. Windows only. |
 | `crates/bench` (`diskmap-bench`) | Command line tool: `scan`, `compare`, `watch`. |
 | `crates/desktop` (`diskmap`) | Tauri 2 app: sessions, config, paint list encoder, commands. Front end in `ui/`. |
+
+### Desktop modules
+
+| Module | Role |
+| --- | --- |
+| `main.rs`, `args.rs` | Startup, command line paths and test switches, headless `--snapshot` dispatch |
+| `commands.rs` | Tauri commands; `build.rs` lists them, `capabilities/main.json` allows them |
+| `state.rs`, `scan.rs`, `session.rs` | Shared state, scan worker, per-tab session (navigation, selection, tags, filter, statistics) |
+| `paint.rs`, `marks.rs` | Paint list encoder, change highlight |
+| `watch.rs` | Live updates |
+| `config.rs`, `paths.rs`, `appearance.rs` | Settings file, installed or portable locations, window frame and zoom |
+| `snapstore.rs`, `snapcmds.rs`, `compare.rs` | Full snapshots on disk, their commands, compare mode |
+| `timeline.rs`, `headless.rs`, `scheduler.rs`, `toast.rs` | Timeline points and reports, headless runs, Task Scheduler, toast |
+| `dashboard.rs` | The `dashboard` command |
+| `update.rs` | Updater ([distribution.md](distribution.md)) |
+| `log.rs` | Application log and `diskmap.log` |
+| `elevate.rs`, `shell.rs`, `fmt.rs` | Relaunch as administrator, Explorer integration, size and date text |
+
+The front end (`ui/js`) has one module per part: `app.js` (tab state and actions), `api.js` (command wrappers), `map.js` and `paintlist.js` (map canvas), `toolbar.js`, `statusbar.js`, `side.js`, `start.js` and `chart.js` (dashboard), `settings.js` and its sections, `output.js`, `menu.js`, `flags.js` (test switches).
 
 ## Data flow
 
@@ -90,6 +109,14 @@ The result is per-node allocated and logical sizes, the match count and the fold
 - A kernel buffer overflow marks the session stale; the status bar shows a Stale button that rescans.
 - Change highlight (`marks.rs`): changed nodes are remembered for 2 s. Painted items get weight 255 for the changed node and 110 for painted ancestors; shrinks and removals set the warning bit; a removed node is marked on its nearest surviving ancestor. The front end fades the highlight over 1.5 s. It is only encoded when `highlight_changes` is on.
 
+## Export
+
+`export` writes rows of a tab as CSV or JSON (`diskmap_core::export`): the view root's subtree, the selection's subtree, or the top files or folders of the side panel. Rows carry path, kind, allocated and logical size, file count for folders, modification time and tag, and honour the active filter. CSV has a header line, CRLF line ends and a UTF-8 BOM. A save dialog proposes `diskmap-<root>-<date>.<ext>`.
+
+## Log
+
+`log.rs` keeps a ring of the last 1000 entries (level, time, source, message) fed by command errors, scan and watcher failures, config errors and front end errors (`onerror`, `unhandledrejection`). Entries are sent to the front end (Output panel, status bar counts) and appended to `diskmap.log` in the data folder, rotated to `diskmap.log.1` at 1 MB.
+
 ## Config file
 
 `diskmap.toml` at the location below, or the path in `DISKMAP_CONFIG`. It is loaded at start, written when settings change and after scans (recent list). Missing or invalid files give the defaults; values are clamped on load.
@@ -112,7 +139,9 @@ The result is per-node allocated and logical sizes, the match count and the fold
 | `check_updates` | true | Check for a new release at startup |
 | `auto_snapshot` | true | Save a full snapshot after every completed full scan |
 | `keep_snapshots` | 5 | Automatic snapshots kept per root (1 to 100); manual ones are never pruned |
-| `recent` | empty | Last 8 scanned paths with sizes |
+| `recent` | empty | Last 8 scanned paths with sizes and scan times |
+| `pins` | empty | Pinned folders |
+| `schedule` | off | Scheduled snapshots: `enabled`, `every` (`daily`, `weekly`), `day`, `time` (`HH:MM`), `roots`, `elevated` ([snapshots.md](snapshots.md)) |
 | `classes` | six defaults | File classes: name, `#rrggbb`, extensions |
 
 The environment variable `DISKMAP_PERF` names a file that receives one timing line per layout.
