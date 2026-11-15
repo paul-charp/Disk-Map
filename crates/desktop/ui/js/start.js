@@ -288,6 +288,8 @@ export function initStart(app) {
     checkTask(data.schedule);
   };
 
+  $('s-about').onclick = () => app.parts.settings.open('About');
+  $('s-settings').onclick = () => app.parts.settings.open();
   $('start-go').onclick = () => scan(input.value);
   $('start-browse').onclick = async () => {
     const picked = await api.browse();

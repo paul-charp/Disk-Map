@@ -8,6 +8,7 @@ export const SHORTCUTS = [
   ['Ctrl+W', 'Close tab'],
   ['Ctrl+Tab', 'Next tab'],
   ['Ctrl+Shift+Tab', 'Previous tab'],
+  ['Ctrl+Shift+PageUp / PageDown', 'Move tab'],
   ['Ctrl+,', 'Settings'],
   ['F5', 'Rescan / stop'],
   ['Backspace', 'Back'],
@@ -48,6 +49,9 @@ function tabKey(app, e) {
   const k = e.key.toLowerCase();
   if (k === 'n') return () => app.newTab();
   if (k === 'w') return () => app.closeTab(app.tab.id);
+  if (e.shiftKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+    return () => app.moveTab(app.tab.id, app.tabs.indexOf(app.tab) + (e.key === 'PageUp' ? -1 : 1));
+  }
   if (e.key === 'Tab') return () => app.cycle(e.shiftKey ? -1 : 1);
   return null;
 }

@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "diskmap",
-  "version": "0.1.0",
+  "productName": "Diskmap",
+  "mainBinaryName": "diskmap",
+  "version": "0.2.0",
   "identifier": "dev.diskmap.app",
   "build": {
     "frontendDist": "./ui"
@@ -11,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "diskmap",
+        "title": "Diskmap",
         "width": 1360,
         "height": 840,
         "minWidth": 720,
@@ -57,7 +58,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3NzVBOEY0OEI1RkRDMzcKUldRMzNGK0w5S2gxeDVSNGZGNGtvZkRwRUtvMHdlRmlmbDFMKzlKZ1pKdE5RR2dOV25EOVpuZTIK",
       "requireSignedVersion": true,
       "endpoints": [
         "https://github.com/paul-charp/Disk-Map/releases/latest/download/latest.json"

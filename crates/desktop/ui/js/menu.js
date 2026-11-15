@@ -1,5 +1,6 @@
 // Popup menu at a screen position.
 import { $, el } from './dom.js';
+import { setIcon } from './icons.js';
 
 /** Colours of the four tags. */
 export const TAG_COLORS = ['#e03131', '#f2c230', '#2f9e44', '#1c7ed6'];
@@ -10,7 +11,7 @@ export function closeMenu() {
 }
 
 /**
- * Shows a menu. Items: `{label, run, swatch?, danger?, on?}`, `{title}`, `{sep: true}` or `{tags: [{on, run}, ...]}`.
+ * Shows a menu. Items: `{label, run, swatch?, danger?, on?, hint?, remove?}`, `{title}`, `{sep: true}` or `{tags: [{on, run}, ...]}`.
  */
 export function openMenu(items, x, y) {
   const m = $('menu');
@@ -32,11 +33,23 @@ function row(item) {
     b.append(sw);
   }
   b.append(item.label);
+  if (item.hint) b.append(el('span', 'hint', item.hint));
   b.onclick = () => {
     closeMenu();
     item.run();
   };
-  return b;
+  return item.remove ? removable(b, item.remove) : b;
+}
+
+/** Wraps a row with a small button that runs `remove` and keeps the menu open. */
+function removable(b, remove) {
+  const w = el('div', 'item');
+  const x = el('button', 'rm');
+  setIcon(x, 'close');
+  x.title = 'Remove';
+  x.onclick = () => remove();
+  w.append(b, x);
+  return w;
 }
 
 function titleRow(text) {
