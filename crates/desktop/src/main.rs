@@ -4,6 +4,7 @@
 
 mod appearance;
 mod args;
+mod channel;
 mod commands;
 mod compare;
 mod config;

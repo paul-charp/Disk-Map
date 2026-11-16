@@ -23,6 +23,7 @@
 | `timeline.rs`, `headless.rs`, `scheduler.rs`, `toast.rs` | Timeline points and reports, headless runs, Task Scheduler, toast |
 | `dashboard.rs` | The `dashboard` command |
 | `update.rs` | Updater ([distribution.md](distribution.md)) |
+| `channel.rs` | Update channels: manifests and accepted versions |
 | `log.rs` | Application log and `diskmap.log` |
 | `explorer.rs` | Open in Diskmap entry of the Explorer menu (HKCU) |
 | `elevate.rs`, `shell.rs`, `fmt.rs` | Relaunch as administrator, Explorer integration, size and date text |

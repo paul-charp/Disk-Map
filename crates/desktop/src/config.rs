@@ -1,5 +1,6 @@
 //! Settings persisted in `diskmap.toml` at the location chosen by `paths`.
 
+use crate::channel::CHANNELS;
 use crate::{log, paths};
 use diskmap_core::classes::{FileClass, FileClasses};
 use diskmap_core::schedule::{Plan, day_index, parse_time};
@@ -189,6 +190,8 @@ pub struct Config {
     pub highlight_changes: bool,
     /// Check for a new release at startup.
     pub check_updates: bool,
+    /// Update channel: `stable`, `beta` or `dev`.
+    pub update_channel: String,
     /// Save a snapshot after every full scan.
     pub auto_snapshot: bool,
     /// Automatic snapshots kept per scan root; manual ones are never pruned.
@@ -218,6 +221,7 @@ impl Default for Config {
             watch: false,
             highlight_changes: false,
             check_updates: true,
+            update_channel: "stable".into(),
             auto_snapshot: true,
             keep_snapshots: 5,
             classes: class_defs(&FileClasses::default()),
@@ -306,6 +310,9 @@ impl Config {
         }
         if !BACKENDS.contains(&self.backend.as_str()) {
             self.backend = "auto".into();
+        }
+        if !CHANNELS.contains(&self.update_channel.as_str()) {
+            self.update_channel = "stable".into();
         }
         for p in std::mem::take(&mut self.pins) {
             self.set_pin(&p, true);
@@ -520,6 +527,19 @@ mod tests {
         cfg.filters = (0..30).map(|i| format!("f{i}")).collect();
         cfg.sanitize();
         assert_eq!(cfg.filters.len(), MAX_FILTERS);
+    }
+
+    #[test]
+    fn update_channel_is_sanitized() {
+        let mut c = Config {
+            update_channel: "nightly".into(),
+            ..Config::default()
+        };
+        c.sanitize();
+        assert_eq!(c.update_channel, "stable");
+        c.update_channel = "beta".into();
+        c.sanitize();
+        assert_eq!(c.update_channel, "beta");
     }
 
     #[test]
