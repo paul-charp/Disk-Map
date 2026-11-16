@@ -55,6 +55,8 @@ const COMMANDS: &[&str] = &[
     "keep_snapshot",
     "reveal_snapshot",
     "compare",
+    "explorer_menu_get",
+    "explorer_menu_set",
 ];
 
 fn main() {

@@ -62,6 +62,8 @@
     "allow-keep-snapshot",
     "allow-reveal-snapshot",
     "allow-compare",
+    "allow-explorer-menu-get",
+    "allow-explorer-menu-set",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

@@ -145,8 +145,26 @@ function aboutSection(app) {
     row('Links', links),
     row('Config', config),
     row('Build', build),
+    row('Explorer menu', explorerToggle(app)),
     ...(app.parts.update?.rows() ?? []),
   ];
+}
+
+/** Toggle for the Explorer context menu entry; the state is read from the registry. */
+function explorerToggle(app) {
+  const holder = el('span');
+  const render = (on) => {
+    holder.replaceChildren(toggle(on, async (v) => {
+      try {
+        await api.setExplorerMenu(v);
+      } catch (e) {
+        app.parts.statusbar.flash(String(e));
+        api.explorerMenu().then(render).catch(() => {});
+      }
+    }));
+  };
+  api.explorerMenu().then(render).catch(() => render(false));
+  return holder;
 }
 
 function onKey(e, api, nav, win) {

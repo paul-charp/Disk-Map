@@ -1,6 +1,6 @@
 // Entry point: wires the backend, the map and the chrome together.
 import { app, TEXT_SCALES } from './app.js';
-import { api, onDrop, onScan } from './api.js';
+import { api, onDrop, onOpenTabs, onScan } from './api.js';
 import { $, copyText } from './dom.js';
 import { initFilter } from './filterbar.js';
 import { applyScanFlags } from './flags.js';
@@ -151,6 +151,7 @@ async function openStartTabs(boot) {
     }
   });
   await onDrop((paths) => app.openPaths(paths));
+  await onOpenTabs((paths) => app.openPaths(paths));
   $('app').hidden = false;
   if (last < 0) return app.newTab();
   for (const [i, p] of boot.tabs.entries()) await app.newTab(p, i === last);

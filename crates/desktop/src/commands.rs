@@ -5,6 +5,7 @@ use crate::args::{Args, Flags};
 use crate::compare::under;
 use crate::config::{ClassDef, Config, FileColors, Schedule, class_defs, hex, same_path};
 use crate::elevate;
+use crate::explorer;
 use crate::fmt;
 use crate::log;
 use crate::paint::{self, FREE_ID, PaintCtx, UNKNOWN_ID, deleted_folder};
@@ -838,6 +839,18 @@ pub async fn elevate(app: AppHandle, state: State<'_, AppState>, tab: TabId) -> 
         app.exit(0);
     }
     Ok(relaunched)
+}
+
+/// True when the Explorer context menu entry is registered.
+#[tauri::command]
+pub async fn explorer_menu_get() -> Res<bool> {
+    Ok(explorer::installed())
+}
+
+/// Adds or removes the Explorer context menu entry.
+#[tauri::command]
+pub async fn explorer_menu_set(on: bool) -> Res<()> {
+    Ok(explorer::set(on)?)
 }
 
 /// Opens a folder picker and returns the chosen path.

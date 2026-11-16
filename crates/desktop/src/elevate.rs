@@ -16,14 +16,19 @@ fn wide(s: &OsStr) -> Vec<u16> {
     s.encode_wide().chain(std::iter::once(0)).collect()
 }
 
-/// Starts this executable again as administrator with `paths` as arguments.
+/// Starts this executable again as administrator with `paths` as arguments, as its own instance.
 /// False when the user declined the prompt or the launch failed; this process keeps running either way.
 pub fn relaunch(paths: &[String]) -> bool {
     let Ok(exe) = std::env::current_exe() else {
         return false;
     };
     let file = wide(exe.as_os_str());
-    let params = wide(OsStr::new(&command_line(paths)));
+    let args: Vec<String> = paths
+        .iter()
+        .cloned()
+        .chain(std::iter::once("--new-instance".to_string()))
+        .collect();
+    let params = wide(OsStr::new(&command_line(&args)));
     let verb = wide(OsStr::new("runas"));
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
