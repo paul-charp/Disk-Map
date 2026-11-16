@@ -1,0 +1,90 @@
+name: Dev build
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-build
+  cancel-in-progress: true
+
+jobs:
+  dev:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Signing key
+        id: key
+        shell: pwsh
+        run: |
+          if ($env:KEY) { "sign=true" >> $env:GITHUB_OUTPUT }
+          else { "::notice::No TAURI_SIGNING_PRIVATE_KEY secret: dev build skipped." }
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.key.outputs.sign == 'true'
+      - uses: Swatinem/rust-cache@v2
+        if: steps.key.outputs.sign == 'true'
+      - name: Cache Tauri CLI
+        if: steps.key.outputs.sign == 'true'
+        id: tauri-cli
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri.exe
+          key: tauri-cli-2-${{ runner.os }}
+      - name: Install Tauri CLI
+        if: steps.key.outputs.sign == 'true' && steps.tauri-cli.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Version
+        if: steps.key.outputs.sign == 'true'
+        id: version
+        shell: pwsh
+        run: |
+          $conf = 'crates/desktop/tauri.conf.json'
+          $base = [version](Get-Content $conf -Raw | ConvertFrom-Json).version
+          $version = "$($base.Major).$($base.Minor + 1).0-dev.${{ github.run_number }}"
+          (Get-Content $conf -Raw) -replace '"version": "[^"]+"', "`"version`": `"$version`"" | Set-Content $conf -NoNewline
+          (Get-Content Cargo.toml -Raw) -replace '(?m)^version = "[^"]+"', "version = `"$version`"" | Set-Content Cargo.toml -NoNewline
+          "version=$version" >> $env:GITHUB_OUTPUT
+          $version
+      - name: Installer
+        if: steps.key.outputs.sign == 'true'
+        working-directory: crates/desktop
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cargo tauri build --bundles nsis --ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Publish
+        if: steps.key.outputs.sign == 'true'
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $asset = 'diskmap-dev-windows-x64-setup.exe'
+          $setup = @(Get-ChildItem target\release\bundle\nsis\*-setup.exe)
+          if ($setup.Count -ne 1) { throw "expected one setup.exe, found $($setup.Count)" }
+          Copy-Item $setup[0].FullName $asset
+          Copy-Item "$($setup[0].FullName).sig" "$asset.sig"
+          $sha = '${{ github.sha }}'.Substring(0, 7)
+          $notes = "$version ($sha)"
+          $url = "https://github.com/${{ github.repository }}/releases/download/dev/$asset"
+          ./tools/release/manifest.ps1 -Version $version -Notes $notes -Url $url -Sig "$asset.sig" -Out dev.json
+          git tag -f dev
+          git push -f origin refs/tags/dev
+          gh release view dev *> $null
+          if ($LASTEXITCODE) {
+            gh release create dev --prerelease --latest=false --title 'Dev build' --notes 'Latest build of develop. Update channel Dev.'
+          }
+          gh release upload dev $asset "$asset.sig" --clobber
+          gh release view channels *> $null
+          if ($LASTEXITCODE) {
+            gh release create channels --prerelease --latest=false --title 'Update channels' --notes 'Updater manifests of the Beta and Dev channels.'
+          }
+          gh release upload channels dev.json --clobber

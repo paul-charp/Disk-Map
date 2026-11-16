@@ -1,7 +1,9 @@
 // Updates: the startup check, the status bar chip and the About rows.
 import { api } from './api.js';
-import { button, iconButton, row, toggle } from './controls.js';
+import { button, iconButton, row, segmented, toggle } from './controls.js';
 import { $, el } from './dom.js';
+
+const CHANNELS = [['stable', 'Stable'], ['beta', 'Beta'], ['dev', 'Dev']];
 
 /** Wires the chip and runs the startup check; returns `{rows()}` for the About section and `info()`, the last check. */
 export function initUpdate(app) {
@@ -37,7 +39,7 @@ export function initUpdate(app) {
     if (busy) return busy;
     if (failed || info?.state === 'failed') return 'Failed';
     if (info?.state === 'off') return 'Off';
-    if (info?.state === 'available') return `${info.version} available`;
+    if (info?.state === 'available') return `${info.version} ${info.downgrade ? 'downgrade' : 'available'}`;
     if (info?.state === 'latest') return 'Latest';
     return '—';
   };
@@ -48,7 +50,7 @@ export function initUpdate(app) {
     const action = el('span', 'alinks');
     const install_ = button('Install', install);
     install_.title = 'Download, install and restart';
-    const release = button('Release', () => api.openLink('release'));
+    const release = button('Release', () => api.openLink(`release:${info.version}`));
     release.title = 'Open the release page';
     action.append(install_, release);
     const again = iconButton('rescan', 'Check now', check);
@@ -69,6 +71,10 @@ export function initUpdate(app) {
     info: () => info,
     rows: () => [
       statusRow(),
+      row('Channel', segmented(CHANNELS, app.cfg.update_channel, async (v) => {
+        await app.patchConfig({ update_channel: v });
+        check();
+      })),
       row('Auto check', toggle(app.cfg.check_updates, (v) => app.patchConfig({ check_updates: v }))),
     ],
   };

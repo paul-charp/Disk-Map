@@ -1,6 +1,6 @@
 # Distribution
 
-Release assets, the updater and its signing key, winget. The Release workflow (`.github/workflows/release.yml`) runs on a `v*` tag.
+Release assets, the updater, its channels and signing key, winget. The Release workflow (`.github/workflows/release.yml`) runs on a `v*` tag; the Dev build workflow (`.github/workflows/dev.yml`) on every push to `develop`.
 
 ## Release assets
 
@@ -11,15 +11,15 @@ Release assets, the updater and its signing key, winget. The Release workflow (`
 | `diskmap-<tag>-windows-x64-setup.exe.sig` | signing key set |
 | `latest.json` | signing key set |
 
-A tag with a `-` (e.g. `v0.3.0-rc.1`) is published as a pre-release. GitHub's `releases/latest` skips pre-releases, so the updater never offers them.
+A tag with a `-` (e.g. `v0.3.0-beta.1`, `v0.3.0-rc.1`) is published as a pre-release. GitHub's `releases/latest` skips pre-releases, so only the Beta and Dev channels offer them.
 
 ## Updater
 
-`tauri-plugin-updater` reads `https://github.com/paul-charp/Disk-Map/releases/latest/download/latest.json`, set in `crates/desktop/tauri.conf.json` under `plugins.updater`. The installer it downloads must carry a signature made with the private key that matches `plugins.updater.pubkey`; `requireSignedVersion` also binds the signature to the version, which blocks downgrades.
+`tauri-plugin-updater` reads the manifests of the selected channel (`crates/desktop/src/channel.rs`, `update.rs`). The installer it downloads must carry a signature made with the private key that matches `plugins.updater.pubkey` in `crates/desktop/tauri.conf.json`; `requireSignedVersion` also binds the signature to the announced version.
 
 - `pubkey` empty: updates are off. The app builds and runs; About shows `Off`. The workflow publishes the portable exe and the setup without updater files and prints a warning.
 - Installed build: checks at startup when `check_updates` is on (Settings, About, Auto check) and from Check now. A newer version shows an `Update x.y.z` chip in the status bar and Install in About, which downloads, verifies, runs the installer in passive mode and restarts.
-- Portable build: same check; About shows Release, which opens the latest release page.
+- Portable build: same check; About shows Release, which opens the release of the version found.
 - Failures go to the log (Output panel), never to a dialog.
 
 The workflow writes `latest.json`:
@@ -39,6 +39,23 @@ The workflow writes `latest.json`:
 ```
 
 The version comes from `tauri.conf.json`, so the tag must match it (`docs/branching.md`).
+
+### Channels
+
+Settings, About, Channel. A channel reads its own manifest and those of the more stable channels, and offers the highest version.
+
+| Channel | Manifest | Versions |
+| --- | --- | --- |
+| Stable | `releases/latest/download/latest.json` | tagged releases `x.y.z` |
+| Beta | `releases/download/channels/beta.json` | pre-release tags `x.y.z-beta.N`, `x.y.z-rc.N` |
+| Dev | `releases/download/channels/dev.json` | every push to `develop`, `x.(y+1).0-dev.<run>` |
+
+- `channels` is a rolling pre-release holding `beta.json` and `dev.json`. The Release workflow replaces `beta.json` on a pre-release tag; the Dev build workflow replaces `dev.json`. Both create it when missing.
+- `dev` is a rolling pre-release holding the latest dev installer (`diskmap-dev-windows-x64-setup.exe` and its `.sig`); its tag moves to the built commit. The Dev build is skipped without the signing secret, and ships no portable exe and no winget update.
+- Switching to a more stable channel offers that channel's latest version even when it is older (About shows `x.y.z downgrade`); Install replaces the build, settings and data stay.
+- To test a feature: cut `vx.y.z-beta.N` from `develop` or `release/*` (`docs/branching.md`) and ask testers to pick Beta, or Dev for every `develop` push.
+
+`tools/release/manifest.ps1` writes the manifests for both workflows.
 
 ### One-time key setup
 

@@ -1041,7 +1041,8 @@ pub async fn about() -> Res<About> {
     })
 }
 
-/// Opens a project page in the default browser: `repo`, `issues` or `release` (the latest release).
+/// Opens a project page in the default browser: `repo`, `issues`, `release` (the latest release)
+/// or `release:<version>` (the release of that version; dev builds share the `dev` release).
 #[tauri::command]
 pub async fn open_link(link: String) -> Res<()> {
     let repo = env!("CARGO_PKG_REPOSITORY");
@@ -1049,10 +1050,20 @@ pub async fn open_link(link: String) -> Res<()> {
         "repo" => repo.to_string(),
         "issues" => format!("{repo}/issues"),
         "release" => format!("{repo}/releases/latest"),
+        l if l.starts_with("release:") => format!("{repo}/releases/tag/{}", release_tag(&l[8..])),
         _ => return Err(format!("Unknown link: {link}").into()),
     };
     shell::open(&url);
     Ok(())
+}
+
+/// The release tag of a version: `dev` for dev builds, `v<version>` otherwise.
+fn release_tag(version: &str) -> String {
+    if version.contains("-dev") {
+        "dev".into()
+    } else {
+        format!("v{version}")
+    }
 }
 
 /// Shows the configuration file in Explorer, or its folder when the file does not exist yet.

@@ -33,6 +33,13 @@ Semantic versioning. The version lives in two places, keep them equal:
    (stable tags, with `WINGET_TOKEN`); see [distribution.md](distribution.md).
 5. Merge `main` back into `develop` and delete the release branch.
 
+## Pre-releases
+
+- Beta: bump the version to `x.y.z-beta.N` (or `-rc.N` on `release/*`) in both files, tag `vx.y.z-beta.N` on that commit and push the tag. The Release workflow publishes it as a pre-release and updates the Beta channel; winget is skipped. Do not merge pre-release versions into `main`.
+- Dev: every push to `develop` builds `x.(y+1).0-dev.<run>` for the Dev channel (`.github/workflows/dev.yml`); nothing to do by hand.
+
+See [distribution.md](distribution.md), Channels.
+
 ## Hotfix
 
 1. `git switch -c hotfix/x.y.z main`

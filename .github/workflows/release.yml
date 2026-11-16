@@ -73,19 +73,8 @@ jobs:
           $section = [regex]::Match((Get-Content CHANGELOG.md -Raw), $pattern)
           $notes = if ($section.Success -and $section.Groups[1].Value.Trim()) { $section.Groups[1].Value.Trim() } else { $tag }
           $asset = "diskmap-$tag-windows-x64-setup.exe"
-          $manifest = [ordered]@{
-            version   = $version
-            notes     = $notes
-            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-            platforms = [ordered]@{
-              'windows-x86_64' = [ordered]@{
-                signature = (Get-Content "$asset.sig" -Raw).Trim()
-                url       = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
-              }
-            }
-          }
-          $manifest | ConvertTo-Json -Depth 5 | Set-Content latest.json -Encoding utf8NoBOM
-          Get-Content latest.json
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
+          ./tools/release/manifest.ps1 -Version $version -Notes $notes -Url $url -Sig "$asset.sig" -Out latest.json
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
@@ -94,6 +83,18 @@ jobs:
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe
             diskmap-${{ github.ref_name }}-windows-x64-setup.exe.sig
             latest.json
+      - name: Beta channel
+        if: steps.key.outputs.sign == 'true' && contains(github.ref_name, '-')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Copy-Item latest.json beta.json
+          gh release view channels *> $null
+          if ($LASTEXITCODE) {
+            gh release create channels --prerelease --latest=false --title 'Update channels' --notes 'Updater manifests of the Beta and Dev channels.'
+          }
+          gh release upload channels beta.json --clobber
 
   winget:
     needs: release
