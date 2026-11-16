@@ -4,11 +4,13 @@
 
 mod appearance;
 mod args;
+mod channel;
 mod commands;
 mod compare;
 mod config;
 mod dashboard;
 mod elevate;
+mod explorer;
 mod fmt;
 mod headless;
 mod log;
@@ -46,6 +48,21 @@ fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
     }
 }
 
+/// A second launch (Explorer menu, shortcut) opens its paths as tabs in the running window.
+fn on_second_launch(app: &tauri::AppHandle, argv: Vec<String>, _cwd: String) {
+    let mut tabs = Args::parse(argv.into_iter().skip(1)).tabs;
+    tabs.retain(|t| !t.is_empty());
+    if tabs.is_empty() {
+        tabs.push(String::new());
+    }
+    let _ = app.emit("open-tabs", tabs);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
 fn main() {
     log::info(
         "app",
@@ -58,7 +75,11 @@ fn main() {
         std::process::exit(headless::run(&args.headless, &cfg));
     }
     let startup = cfg.clone();
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    if args.is_plain() && !args.new_instance && std::env::var_os("DISKMAP_CONFIG").is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(on_second_launch));
+    }
+    builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(cfg))
         .on_window_event(on_window_event)
@@ -130,6 +151,8 @@ fn main() {
             snapcmds::keep_snapshot,
             snapcmds::reveal_snapshot,
             snapcmds::compare,
+            commands::explorer_menu_get,
+            commands::explorer_menu_set,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run diskmap");

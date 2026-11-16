@@ -23,7 +23,9 @@
 | `timeline.rs`, `headless.rs`, `scheduler.rs`, `toast.rs` | Timeline points and reports, headless runs, Task Scheduler, toast |
 | `dashboard.rs` | The `dashboard` command |
 | `update.rs` | Updater ([distribution.md](distribution.md)) |
+| `channel.rs` | Update channels: manifests and accepted versions |
 | `log.rs` | Application log and `diskmap.log` |
+| `explorer.rs` | Open in Diskmap entry of the Explorer menu (HKCU) |
 | `elevate.rs`, `shell.rs`, `fmt.rs` | Relaunch as administrator, Explorer integration, size and date text |
 
 The front end (`ui/js`) has one module per part: `app.js` (tab state and actions), `api.js` (command wrappers), `map.js` and `paintlist.js` (map canvas), `toolbar.js`, `statusbar.js`, `side.js`, `start.js` and `chart.js` (dashboard), `settings.js` and its sections, `output.js`, `menu.js`, `flags.js` (test switches).

@@ -37,9 +37,16 @@ pub struct Args {
     pub tabs: Vec<String>,
     pub flags: Flags,
     pub headless: Headless,
+    /// Skip the single-instance hand-over to a running window.
+    pub new_instance: bool,
     theme: Option<String>,
     scale: Option<u32>,
     colors: Option<FileColors>,
+}
+
+/// Explorer passes a drive as `"C:\"`, which argument parsing turns into `C:"`.
+fn clean_path(path: &str) -> String {
+    path.strip_suffix('"').unwrap_or(path).to_string()
 }
 
 impl Args {
@@ -63,18 +70,28 @@ impl Args {
                     args.next()
                         .iter()
                         .flat_map(|v| v.split(';'))
-                        .map(str::to_string),
+                        .map(clean_path),
                 ),
                 "--snapshot" => out.headless.roots.extend(args.next()),
                 "--quiet" => out.headless.quiet = true,
                 "--no-toast" => out.headless.no_toast = true,
                 "--side" => out.flags.side = true,
                 "--log" => out.flags.log = true,
+                "--new-instance" => out.new_instance = true,
                 a if a.starts_with("--") => {}
-                _ => out.tabs.push(arg),
+                _ => out.tabs.push(clean_path(&arg)),
             }
         }
         out
+    }
+
+    /// True when no test switch or per-run override is set.
+    pub fn is_plain(&self) -> bool {
+        self.flags == Flags::default()
+            && self.headless == Headless::default()
+            && self.theme.is_none()
+            && self.scale.is_none()
+            && self.colors.is_none()
     }
 
     /// The arguments of this process.
@@ -146,5 +163,20 @@ mod tests {
         assert_eq!(a.headless.roots, [r"C:\", r"D:\x"]);
         assert!(a.headless.quiet && a.headless.no_toast);
         assert!(a.tabs.is_empty());
+    }
+
+    #[test]
+    fn explorer_drive_quote_is_stripped() {
+        let a = parse(&["C:\\\"", "--tabs", "D:\\\";"]);
+        assert_eq!(a.tabs, ["C:\\", "D:\\", ""]);
+    }
+
+    #[test]
+    fn plain_and_new_instance() {
+        assert!(parse(&[r"C:\a"]).is_plain());
+        assert!(!parse(&["--side"]).is_plain());
+        assert!(!parse(&["--theme", "dark"]).is_plain());
+        let a = parse(&["--new-instance", r"C:\a"]);
+        assert!(a.new_instance && a.is_plain());
     }
 }
