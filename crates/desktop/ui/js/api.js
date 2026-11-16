@@ -60,8 +60,11 @@ export const api = {
   keepSnapshot: (path, kept) => invoke('keep_snapshot', { path, kept }),
   revealSnapshot: (path = null) => invoke('reveal_snapshot', { path }),
   compare: (tab, path) => invoke('compare', { tab, path }),
+  explorerMenu: () => invoke('explorer_menu_get'),
+  setExplorerMenu: (on) => invoke('explorer_menu_set', { on }),
 };
 
 export const onScan = (fn) => listen('scan', (e) => fn(e.payload));
 export const onDrop = (fn) => listen('dropped', (e) => fn(e.payload));
+export const onOpenTabs = (fn) => listen('open-tabs', (e) => fn(e.payload));
 export const onLog = (fn) => listen('log', (e) => fn(e.payload));

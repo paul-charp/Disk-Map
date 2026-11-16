@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Explorer menu: Open in Diskmap on folders, folder backgrounds and drives (HKCU, written by the installer, toggle in Settings, About).
+- Single instance: a second launch opens its paths as tabs in the running window.
+
 ## 0.2.0
 
 - Window title, shortcuts, uninstall entry and toasts named Diskmap; the exe stays `diskmap.exe`.
