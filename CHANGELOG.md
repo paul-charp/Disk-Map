@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Explorer menu: Open in Diskmap on folders, folder backgrounds and drives (HKCU, written by the installer, toggle in Settings, About).
 - Single instance: a second launch opens its paths as tabs in the running window.
