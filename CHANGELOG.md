@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.3.0
 
 - Explorer menu: Open in Diskmap on folders, folder backgrounds and drives (HKCU, written by the installer, toggle in Settings, About).
