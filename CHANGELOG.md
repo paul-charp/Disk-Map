@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Home tab: the dashboard is a fixed first tab that cannot close or move; scans from it open new tabs, `+` and Ctrl+N go to it.
+- Dashboard Changes section (was Movers): one row per root with its change and top movers over 7d, 30d or All; `dashboard` takes `days`.
+- Trend chart gridline labels in one unit with the decimals the step needs; small changes show offsets from the lowest line.
+- Age colours and compare mode tint folders: closed folders by the age of half their bytes, open folders on their header.
+- Schedule slot on the dashboard updates after Apply.
+
 ## 0.3.0
 
 - Explorer menu: Open in Diskmap on folders, folder backgrounds and drives (HKCU, written by the installer, toggle in Settings, About).

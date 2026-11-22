@@ -138,7 +138,8 @@ Changes apply with Apply. `schedule_set` writes the task first and stores the se
 
 - The task `diskmap\Snapshot` is registered with `schtasks /Create /TN diskmap\Snapshot /XML <file> /F` from an XML definition
   (`schedule::task_xml`, written UTF-16 with BOM to `<data>\schedule.xml` and deleted afterwards). XML instead of `/TR` so the task also runs
-  on battery, starts late after a missed time (`StartWhenAvailable`), never runs twice at once and stops after 2 hours.
+  on battery, starts late after a missed time (`StartWhenAvailable`: a run missed while the PC was off starts soon after the next boot, once),
+  never runs twice at once and stops after 2 hours. The task runs as the logged-on user (`InteractiveToken`), so a late start waits for logon.
 - Action: `"<current exe>" "--snapshot" "C:\\" ... "--quiet"`. Moving the exe breaks the task; Apply again from the new location.
 - Elevated sets `RunLevel` HighestAvailable so the run can use the MFT. Registering such a task needs an elevated `schtasks`: when the app
   is not elevated it runs `schtasks.exe` through `ShellExecuteExW` with `runas` (one UAC prompt) and waits for its exit code. Replacing or

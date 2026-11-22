@@ -1,5 +1,5 @@
 // Sizes and times for the start screen, matching the backend's `fmt` module.
-const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+export const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const DAY = 86400;
@@ -16,6 +16,9 @@ export function size(bytes) {
   const text = v < 9.995 ? v.toFixed(2) : v < 99.95 ? v.toFixed(1) : v.toFixed(0);
   return `${text.includes('.') ? text.replace(/\.?0+$/, '') : text} ${UNITS[unit]}`;
 }
+
+/** `bytes` in unit `UNITS[unit]` with fixed decimals, e.g. `412.05 GB`. */
+export const sizeIn = (bytes, unit, decimals) => `${(bytes / 1024 ** unit).toFixed(decimals)} ${UNITS[unit]}`;
 
 /** Size change with its sign: `+1.2 GB`, `-512 MB`, `0 B`. */
 export const signed = (delta) => (delta > 0 ? '+' : delta < 0 ? '-' : '') + size(Math.abs(delta));

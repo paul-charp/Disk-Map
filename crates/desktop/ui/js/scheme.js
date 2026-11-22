@@ -67,6 +67,7 @@ function makeScheme(p) {
   /** Share of the way from the background to the hue at a nesting depth. */
   const level = (depth) => Math.min(0.32 + 0.17 * (Math.max(depth, 1) - 1), 0.97);
   const toward = (hue, depth) => legible(mix(p.bg, hue, level(depth)));
+  const folder = memo((depth) => toward(p.folder, depth), (d) => d);
   return {
     name: p.name,
     bg: p.bg,
@@ -83,7 +84,9 @@ function makeScheme(p) {
     free: legible(p.free),
     unknown: legible(p.unknown),
     /** Fill of an open folder panel or a closed folder tile at a depth below the view root. */
-    folder: memo((depth) => toward(p.folder, depth), (d) => d),
+    folder,
+    /** Folder fill mixed halfway with a hue, e.g. an age or delta colour: closed folder tiles and open folder headers. */
+    folderTint: memo((depth, hue) => legible(mix(folder(depth), hue, 0.5)), (d, hue) => d * 16777216 + pack(hue)),
     /** Fill of a file tile; `hue` overrides the file hue, e.g. with a class colour. */
     file: memo((depth, hue = p.file) => toward(hue, depth), (d, hue = p.file) => d * 16777216 + pack(hue)),
     /** Near-black or white, whichever reads better. */

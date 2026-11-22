@@ -34,7 +34,7 @@ export const api = {
   properties: (tab, node) => invoke('properties_node', { tab, node }),
   recycle: (tab, node) => invoke('recycle_node', { tab, node }),
   startInfo: () => invoke('start_info'),
-  dashboard: () => invoke('dashboard'),
+  dashboard: (days = null) => invoke('dashboard', { days }),
   setPin: (path, on) => invoke('set_pin', { path, on }),
   browse: () => invoke('browse'),
   exportTo: (tab, scope, format, depth = null, node = null, path = null) =>

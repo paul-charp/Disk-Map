@@ -1,4 +1,4 @@
-// Tab strip: one button per tab with scan indicator and close button, plus the new-tab button.
+// Tab strip: the fixed Home tab, one button per scan tab with scan indicator and close button, and the new-tab button.
 import { $, el } from './dom.js';
 import { setIcon } from './icons.js';
 import { titleOf } from './tabs.js';
@@ -15,7 +15,7 @@ export function initTabbar(app) {
   const reorder = (e, left) => {
     const mid = () => left() + e.offsetWidth / 2;
     const middle = (n) => n.offsetLeft + n.offsetWidth / 2;
-    for (let p = e.previousElementSibling; p && mid() < middle(p); p = e.previousElementSibling) strip.insertBefore(e, p);
+    for (let p = e.previousElementSibling; p && !p.classList.contains('home') && mid() < middle(p); p = e.previousElementSibling) strip.insertBefore(e, p);
     for (let n = e.nextElementSibling; n && mid() > middle(n); n = e.nextElementSibling) strip.insertBefore(n, e);
   };
 
@@ -57,7 +57,20 @@ export function initTabbar(app) {
     addEventListener('pointercancel', up);
   };
 
+  const buildHome = (tab) => {
+    const e = el('div', 'tab home');
+    e.setAttribute('role', 'tab');
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    setIcon(icon, 'home');
+    e.append(icon);
+    e.title = 'Home';
+    e.onclick = () => app.activate(tab.id);
+    rows.set(tab.id, { e, name: null });
+    return e;
+  };
+
   const build = (tab) => {
+    if (tab.home) return buildHome(tab);
     const e = el('div', 'tab');
     e.setAttribute('role', 'tab');
     const spin = el('i', 'spin');
@@ -82,8 +95,10 @@ export function initTabbar(app) {
 
   const paint = (tab) => {
     const r = rows.get(tab.id);
-    r.name.textContent = titleOf(tab.path, app.driveLabels);
-    r.e.title = tab.path || 'New tab';
+    if (r.name) {
+      r.name.textContent = titleOf(tab.path, app.driveLabels);
+      r.e.title = tab.path || 'New tab';
+    }
     r.e.classList.toggle('active', tab === app.tab);
     r.e.classList.toggle('scanning', !!tab.status.running);
     r.e.setAttribute('aria-selected', tab === app.tab);

@@ -1,6 +1,6 @@
 // Draws paint-list items on a canvas, in device pixels.
 import { F, HL_FADE_MS } from './paintlist.js';
-import { css, parseHex } from './scheme.js';
+import { DELTA, css, parseHex } from './scheme.js';
 
 const UI = '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif';
 const MONO = '"Cascadia Mono", Consolas, monospace';
@@ -119,13 +119,32 @@ export class Painter {
       if (c < 0) return this.scheme.file(d);
       return this.scheme.file(d, f & F.AGE ? this.scheme.age[c] : this.classRgb[c]);
     }
-    return this.scheme.folder(d);
+    const hue = f & F.DRILLED ? null : this.#hue(list, i);
+    return hue ? this.scheme.folderTint(d, hue) : this.scheme.folder(d);
+  }
+
+  /** Age or delta hue of a folder item, null without one. */
+  #hue(list, i) {
+    const f = list.flags(i);
+    const c = list.cls(i);
+    if (c < 0) return null;
+    if (f & F.AGE) return this.scheme.age[c];
+    if (f & F.DELTA && c !== DELTA.DELETED) return this.scheme.deltaHue[c];
+    return null;
+  }
+
+  /** Fill of the header strip of an open folder, null when it keeps the panel colour. */
+  #headFill(list, i) {
+    if (!(list.flags(i) & F.DRILLED)) return null;
+    const hue = this.#hue(list, i);
+    return hue ? this.scheme.folderTint(list.depth(i), hue) : null;
   }
 
   /** Paints every item below the view root: fills batched per depth and colour, then labels and marks. */
   base(ctx, list) {
     const marked = [];
     for (const [fill, items] of this.#batches(list, marked)) this.#fillBatch(ctx, list, fill, items);
+    this.#headBatch(ctx, list);
     this.font = '';
     this.fill = '';
     for (const i of marked) this.#decor(ctx, list, i, this.color(list, i));
@@ -144,6 +163,30 @@ export class Painter {
       if (list.flags(i) & bare) marked.push(i);
     }
     return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([, g]) => [g.fill, g.items]);
+  }
+
+  /** Header strips of open folders that carry an age or delta tint, batched per colour. */
+  #headBatch(ctx, list) {
+    const groups = new Map();
+    for (let i = 1; i < list.n; i++) {
+      const c = this.#headFill(list, i);
+      if (!c) continue;
+      const key = (c[0] << 16) | (c[1] << 8) | c[2];
+      let g = groups.get(key);
+      if (!g) groups.set(key, (g = { fill: css(c), items: [] }));
+      g.items.push(i);
+    }
+    for (const g of groups.values()) {
+      ctx.fillStyle = g.fill;
+      ctx.beginPath();
+      for (const i of g.items) this.#headRect(ctx, list, i);
+      ctx.fill();
+    }
+  }
+
+  #headRect(ctx, list, i) {
+    const r = this.m.panelRadius;
+    ctx.roundRect(list.x(i), list.y(i), list.w(i), Math.min(this.m.head, list.h(i)), [r, r, 0, 0]);
   }
 
   #fillBatch(ctx, list, fill, items) {
@@ -210,11 +253,20 @@ export class Painter {
     this.fill = '';
     roundRect(ctx, list.x(i), list.y(i), list.w(i), list.h(i), this.#radius(list, i));
     ctx.fill();
+    const head = this.#headFill(list, i);
+    if (head) {
+      const tint = this.scheme.hover(head);
+      ctx.fillStyle = css(tint);
+      ctx.beginPath();
+      this.#headRect(ctx, list, i);
+      ctx.fill();
+      return this.#decor(ctx, list, i, fill, tint);
+    }
     this.#decor(ctx, list, i, fill);
   }
 
   /** Hatching, label, tag dot and selection outline of an item whose fill is already painted. */
-  #decor(ctx, list, i, fill) {
+  #decor(ctx, list, i, fill, head = this.#headFill(list, i)) {
     const [x, y, w, h] = [list.x(i), list.y(i), list.w(i), list.h(i)];
     const f = list.flags(i);
     const panel = f & F.DRILLED;
@@ -222,7 +274,7 @@ export class Painter {
     if (f & (F.UNKNOWN | F.DELETED)) this.#hatch(ctx, [x, y, w, h], r, this.scheme.text(fill));
     const label = list.label(i);
     if (label) {
-      const color = f & F.SELECTED && panel ? css(this.scheme.accent) : this.scheme.text(fill);
+      const color = f & F.SELECTED && panel ? css(this.scheme.accent) : this.scheme.text(panel && head ? head : fill);
       if (panel) this.#header(ctx, [x, y, w], label, color, f & F.BOLD);
       else this.#tileLabel(ctx, [x, y, w, h], label, color, f & F.BOLD);
     }

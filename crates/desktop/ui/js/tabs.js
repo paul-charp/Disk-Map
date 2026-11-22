@@ -1,11 +1,12 @@
-// Tab model: one tab per scan, or a start screen waiting for a path.
+// Tab model: the Home tab (the start screen, always first) and one tab per scan.
 
 let nextId = 1;
 
-/** Creates an empty start tab. */
-export function newTab() {
+/** Creates a tab waiting for a scan, or the Home tab. */
+export function newTab(home = false) {
   return {
     id: nextId++,
+    home,
     mode: 'start',
     path: '',
     status: { active: false },

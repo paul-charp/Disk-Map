@@ -10,7 +10,7 @@
   <div id="app" hidden>
     <div id="tabbar">
       <div id="tabs" role="tablist"></div>
-      <button class="ib" id="b-newtab" data-icon="plus" title="New tab (Ctrl+N)"></button>
+      <button class="ib" id="b-newtab" data-icon="plus" title="New scan (Ctrl+N)"></button>
     </div>
     <div id="pane">
       <div id="view">
@@ -91,7 +91,11 @@
                 <div id="trend-empty" class="empty" hidden></div>
               </section>
               <section>
-                <h2>MOVERS</h2>
+                <div class="shead">
+                  <h2>CHANGES</h2>
+                  <span class="grow"></span>
+                  <span id="movers-window" class="seg"></span>
+                </div>
                 <div id="start-movers"></div>
               </section>
             </div>

@@ -1,13 +1,15 @@
-// Start screen of a tab: path field, then the dashboard: drives, trend, movers, pinned folders, recent scans and status slots.
+// Start screen of the Home tab: path field, then the dashboard: drives, trend, changes per root, pinned folders, recent scans and status slots.
 import { api } from './api.js';
 import { Trend, change, sparkline } from './chart.js';
-import { button, iconButton } from './controls.js';
+import { button, iconButton, segmented } from './controls.js';
 import { $, el } from './dom.js';
 import { ago, dayTime, signed, size, trend, weekdayTime } from './fmt.js';
 import { setIcon } from './icons.js';
 
 const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const MOVERS_SHOWN = 5;
+/** Windows of the Changes section: days, label; 0 is the whole history. */
+const WINDOWS = [[7, '7d'], [30, '30d'], [0, 'All']];
 
 /** Joins a scan root and a path below it. */
 const join = (root, rel) => (rel ? (root.endsWith('\\') ? root + rel : `${root}\\${rel}`) : root);
@@ -115,7 +117,7 @@ function compareButton(ctx, root, rel = '') {
   return b;
 }
 
-/** A mover below a report line. */
+/** A mover below a root's change line. */
 function moverRow(r, m, ctx) {
   const row = el('div', 'item sub');
   row.title = `Scan ${join(r.root, m.path)}`;
@@ -125,16 +127,15 @@ function moverRow(r, m, ctx) {
   return row;
 }
 
-/** A report line: root, time and total change; the chevron shows its movers. */
-function reportRow(r, ctx) {
-  const key = `${r.root}|${r.time}`;
+/** A root's change over the window: root, window start and total change; the chevron shows its movers. */
+function changeRow(r, ctx) {
   const box = el('div', 'mv');
   const row = el('div', 'item');
   row.title = `Scan ${r.root}`;
   const movers = [...r.growers.slice(0, MOVERS_SHOWN), ...r.shrinkers.slice(0, MOVERS_SHOWN)];
   const list = el('div', 'mlist');
   list.append(...movers.map((m) => moverRow(r, m, ctx)));
-  const open = () => ctx.expanded.has(key);
+  const open = () => ctx.expanded.has(r.root);
   const chev = el('button', 'ib chev');
   chev.title = 'Movers';
   setIcon(chev, 'chevron');
@@ -145,14 +146,13 @@ function reportRow(r, ctx) {
   };
   chev.onclick = (e) => {
     e.stopPropagation();
-    if (open()) ctx.expanded.delete(key);
-    else ctx.expanded.add(key);
+    if (open()) ctx.expanded.delete(r.root);
+    else ctx.expanded.add(r.root);
     sync();
   };
-  const when = el('span', 'a', ago(r.time));
-  when.title = dayTime(r.time);
-  const total = r.old == null ? el('span', 'd muted', 'First') : delta(r.new - r.old);
-  row.append(chev, el('span', 't', r.root), when, total);
+  const when = el('span', 'a', ago(r.from));
+  when.title = `${dayTime(r.from)} → ${dayTime(r.to)}`;
+  row.append(chev, el('span', 't', r.root), when, delta(r.new - r.old));
   if (r.snapshot) row.append(compareButton(ctx, r.root));
   row.onclick = () => ctx.open(r.root);
   sync();
@@ -179,24 +179,25 @@ function slot(icon, text, title, run, cls = '') {
   return b;
 }
 
-/** Wires the start screen; returns `{show(tab), text(), error(text), status()}`. */
+/** Wires the start screen; returns `{show(tab), text(), error(text), status(), refresh(), focus()}`. */
 export function initStart(app) {
   const input = $('start-path');
   let data = null;
   let chosen = null;
   let seq = 0;
   let taskMissing = false;
+  let days = 7;
   const chart = new Trend($('trend'), (p, prev) => {
     $('trend-read').textContent = p ? `${dayTime(p.time)} · ${size(p.allocated)}${prev ? ` · ${signed(p.allocated - prev.allocated)}` : ''}` : '';
   });
 
-  /** Scans the first of the `;`-separated paths in this tab and opens the others in new tabs. */
+  /** Opens one tab per `;`-separated path, activating the first; Home stays the start screen. */
   const scan = async (text) => {
-    const [first, ...rest] = text.split(';').map((p) => p.trim()).filter(Boolean);
-    if (!first) return;
-    const tab = app.tab;
-    for (const p of rest) await app.newTab(p, false);
-    await app.scan(tab, first);
+    const paths = text.split(';').map((p) => p.trim()).filter(Boolean);
+    if (!paths.length) return;
+    app.home().startError = '';
+    $('start-err').textContent = '';
+    for (const [i, p] of paths.entries()) await app.newTab(p, i === 0);
   };
 
   /** Opens a tab scanning `root`, compares it with the latest snapshot when the scan ends, then zooms to `rel`. */
@@ -259,7 +260,7 @@ export function initStart(app) {
     ctx.admin = data.admin;
     $('start-drives').replaceChildren(...data.drives.map((d) => driveCard(d, ctx)));
     renderTrend();
-    $('start-movers').replaceChildren(...(data.reports.length ? data.reports.map((r) => reportRow(r, ctx)) : [empty('No reports', data.schedule, ctx)]));
+    $('start-movers').replaceChildren(...(data.movers.length ? data.movers.map((r) => changeRow(r, ctx)) : [empty('No history', data.schedule, ctx)]));
     $('start-pinned').hidden = data.pins.length === 0;
     $('start-pins').replaceChildren(...data.pins.map((r) => pathRow(r, ctx)));
     $('start-recent').replaceChildren(...(data.recent.length ? data.recent.map((r) => pathRow(r, ctx)) : [el('div', 'empty muted', 'None')]));
@@ -276,7 +277,7 @@ export function initStart(app) {
 
   const refresh = async () => {
     const mine = ++seq;
-    const next = await api.dashboard().catch((e) => {
+    const next = await api.dashboard(days).catch((e) => {
       $('start-err').textContent = String(e);
       return null;
     });
@@ -288,6 +289,12 @@ export function initStart(app) {
     checkTask(data.schedule);
   };
 
+  $('movers-window').replaceWith(
+    Object.assign(segmented(WINDOWS, days, (d) => {
+      days = d;
+      refresh();
+    }), { id: 'movers-window', title: 'Window' }),
+  );
   $('s-about').onclick = () => app.parts.settings.open('About');
   $('s-settings').onclick = () => app.parts.settings.open();
   $('start-go').onclick = () => scan(input.value);
@@ -302,6 +309,11 @@ export function initStart(app) {
       $('start-err').textContent = text;
     },
     status: () => !$('start').hidden && renderSlots(),
+    focus: () => {
+      input.focus();
+      input.select();
+    },
+    refresh: () => refresh(),
     show: async (tab) => {
       input.value = tab.startText;
       $('start-err').textContent = tab.startError;
