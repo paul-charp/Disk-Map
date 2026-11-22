@@ -74,10 +74,32 @@ pub fn previous(times: &[i64], now: i64) -> Option<usize> {
     newest(true).or_else(|| newest(false))
 }
 
+/// Start of a window ending at the newest point: the newest earlier point at least `days` old
+/// (half a day of slack), or the oldest when `days` is `None`. `times` are Unix seconds, oldest first.
+pub fn window_start(times: &[i64], days: Option<i64>) -> Option<usize> {
+    let last = times.len().checked_sub(1).filter(|&i| i > 0)?;
+    let Some(days) = days else {
+        return Some(0);
+    };
+    let limit = times[last] - days * DAY + DAY / 2;
+    (0..last).rev().find(|&i| times[i] <= limit)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::summary::{SummaryEntry, SummaryOptions};
+
+    #[test]
+    fn window_starts() {
+        let times = [0, 3 * DAY, 6 * DAY + 3600, 10 * DAY];
+        assert_eq!(window_start(&times, Some(7)), Some(1));
+        assert_eq!(window_start(&times, Some(4)), Some(2));
+        assert_eq!(window_start(&times, Some(30)), None);
+        assert_eq!(window_start(&times, None), Some(0));
+        assert_eq!(window_start(&[5], None), None);
+        assert_eq!(window_start(&[], Some(7)), None);
+    }
 
     fn point(sizes: &[(&str, u64)]) -> Summary {
         let total = sizes.iter().map(|s| s.1).sum();

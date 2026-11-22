@@ -3,7 +3,7 @@
 //! Layout of the buffer, all little-endian `i32`:
 //! - header: item count, label blob bytes, view root node, layout micros;
 //! - items: x, y, w, h, node, meta, parent index, highlight
-//!   (meta = depth | class << 8 | flags << 16, class is an age bucket when [`F_AGE`] is set and a
+//!   (meta = depth | class << 8 | flags << 16, class is an age bucket (files and folders) when [`F_AGE`] is set and a
 //!   delta class when [`F_DELTA`] is set; highlight = weight << 16 | warning << 15 | age in ms, 0 for none);
 //! - label blob: UTF-8 labels joined by `\n`, one per item flagged [`F_LABEL`], in item order.
 //!   A label is `name\u{1}size`. Item 0 is the view root; its rect lies outside the area.
@@ -11,11 +11,11 @@
 use crate::config::FileColors;
 use crate::fmt;
 use crate::session::Session;
-use diskmap_core::age::age_bucket;
 use diskmap_core::classes::FileClasses;
 use diskmap_core::compare::CLASS_DELETED;
 use diskmap_core::layout::{Item, ItemKind, LayoutParams, Rect, layout};
 use diskmap_core::tree::{NodeId, NodeKind};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Node id of the free-space item.
@@ -96,6 +96,7 @@ struct Encoder<'a> {
     unknown: u64,
     index_of: Vec<u32>,
     highlight: Vec<i32>,
+    ages: Option<Arc<Vec<u8>>>,
     ints: Vec<i32>,
     blob: Vec<u8>,
     labels: usize,
@@ -152,6 +153,9 @@ impl Encoder<'_> {
         if let Some(c) = self.delta_class(id) {
             flags |= F_DELTA;
             class = c;
+        } else if let (FileColors::Age, Some(ages)) = (self.s.view.file_colors, &self.ages) {
+            flags |= F_AGE;
+            class = u32::from(ages[id.0 as usize]);
         } else if file {
             match self.s.view.file_colors {
                 FileColors::Accent => {}
@@ -159,10 +163,7 @@ impl Encoder<'_> {
                     let other = self.cx.classes.classes().len();
                     class = self.cx.classes.class_of(tree.name(id)).unwrap_or(other) as u32;
                 }
-                FileColors::Age => {
-                    flags |= F_AGE;
-                    class = u32::from(age_bucket(tree.times(id).mtime, self.cx.now));
-                }
+                FileColors::Age => {}
             }
         }
         if self.s.selection == Some(id) {
@@ -254,6 +255,7 @@ pub fn build(s: &Session, cx: &PaintCtx<'_>) -> Vec<u8> {
         unknown,
         index_of,
         highlight,
+        ages: (s.view.file_colors == FileColors::Age).then(|| s.age_buckets(cx.now)),
         ints: Vec::with_capacity(items.len() * ITEM_INTS),
         blob: Vec::new(),
         labels: 0,
@@ -416,6 +418,9 @@ mod tests {
             .filter(|m| m >> 16 & F_FILE != 0)
             .collect();
         assert_eq!(metas.len(), 1);
+        let root = word(&buf, HEADER_INTS + 5) as u32;
+        assert_ne!(root >> 16 & F_AGE, 0, "folders carry an age bucket too");
+        assert_eq!(root >> 8 & 255, 0);
         assert_ne!(metas[0] >> 16 & F_AGE, 0);
         assert_eq!(
             metas[0] >> 8 & 255,

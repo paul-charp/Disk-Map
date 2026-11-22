@@ -6,7 +6,7 @@ use crate::fmt;
 use crate::marks::Marks;
 use crate::scan::Scan;
 use crate::watch::{DEFAULT_CLUSTER, Live};
-use diskmap_core::age::{AGE_BUCKETS, age_bucket};
+use diskmap_core::age::{AGE_BUCKETS, TICKS_PER_DAY, age_bucket, folder_buckets};
 use diskmap_core::classes::FileClasses;
 use diskmap_core::filter::{Filter, FilterCtx, Filtered};
 use diskmap_core::layout::Sizes;
@@ -16,6 +16,7 @@ use diskmap_scan::{Change, ChangeKind, LiveUpdater, WatchEvent, WatchKind};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const SCAN_REFRESH: Duration = Duration::from_millis(500);
@@ -64,6 +65,13 @@ pub struct Stats {
     pub classes: Vec<u64>,
     key: Option<(NodeId, u64, u64)>,
     at: Option<Instant>,
+}
+
+/// Age bucket per node, cached until the tree, sizes or day change.
+#[derive(Default)]
+struct AgeCache {
+    key: Option<(u64, u64, u64, i64)>,
+    buckets: Arc<Vec<u8>>,
 }
 
 /// Per-tab view options, initialised from the configured defaults.
@@ -177,6 +185,7 @@ pub struct Session {
     /// When the scan started (FILETIME).
     pub started: i64,
     stats: Stats,
+    ages: Mutex<AgeCache>,
     restore: Option<Restore>,
 }
 
@@ -203,6 +212,7 @@ impl Session {
             compare_ver: 0,
             started: fmt::filetime_now(),
             stats: Stats::default(),
+            ages: Mutex::default(),
             restore: None,
         }
     }
@@ -365,6 +375,23 @@ impl Session {
             .filtered
             .as_ref()
             .map_or(Sizes::Allocated, |f| Sizes::Slice(&f.sizes))
+    }
+
+    /// Age bucket of every node, folders by median size, for the sizes the map uses.
+    pub fn age_buckets(&self, now: i64) -> Arc<Vec<u8>> {
+        let key = (
+            self.scan.version,
+            self.filter.ver,
+            self.compare_ver,
+            now / TICKS_PER_DAY,
+        );
+        let mut cache = self.ages.lock().unwrap_or_else(|e| e.into_inner());
+        if cache.key != Some(key) {
+            let tree = self.scan.tree();
+            cache.buckets = Arc::new(folder_buckets(tree, self.layout_sizes(), now));
+            cache.key = Some(key);
+        }
+        Arc::clone(&cache.buckets)
     }
 
     /// Size of a node under the active filter.

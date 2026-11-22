@@ -79,14 +79,14 @@ PaintList decode -> Painter (offscreen canvas) -> MapView canvas + hover and hig
 
 ## Start screen
 
-The start tab is a dashboard (`ui/js/start.js`, drawings in `ui/js/chart.js`), filled by one `dashboard` command (`crates/desktop/src/dashboard.rs`):
+The Home tab, fixed first in the strip and never closed, is a dashboard (`ui/js/start.js`, drawings in `ui/js/chart.js`), filled by one `dashboard` command (`crates/desktop/src/dashboard.rs`):
 
 - Drives: label, file system, MFT capability (local fixed or removable NTFS), total and free bytes, and the root totals of every timeline point. Points are read with `Summary::read_root` from the first 4 KB of each file.
 - Pins and recent scans with size, last scan time (the recent entry's `time` or the newest point) and the change between the last two points.
-- The last 10 report lines, each with whether its root has a snapshot.
+- Changes: one card per root with history (drives, scheduled roots, pins), largest change first: totals and up to 5 growers and shrinkers between the newest point and the window start (`report::window_start`: newest point at least 7 or 30 days old, or the oldest for All and for a shorter history), and whether the root has a snapshot. `dashboard` takes `days` (0 for all).
 - The schedule settings and whether the process is elevated. Whether the task exists comes from a background `schedule_get`.
 
-Drive cards show a used bar, the 7 and 30 day change (newest point against the newest one at least that old) and an SVG sparkline; the Trend chart is a canvas scaled by `devicePixelRatio` and redrawn on resize and theme change. Movers open a new tab on a root or a mover; Compare scans the root, compares with the newest snapshot not taken by that scan and zooms to the mover. Status slots: update available, next scheduled run (or Schedule off, Task missing), Elevate or Admin. Up and down colours are the `--up` and `--down` theme variables.
+Drive cards show a used bar, the 7 and 30 day change (newest point against the newest one at least that old) and an SVG sparkline; the Trend chart is a canvas scaled by `devicePixelRatio` and redrawn on resize and theme change; its gridlines share one unit and the decimals the step needs, and a change too small for two decimals labels the lowest line absolute and the others as offsets. Scans started from Home open new tabs; `+` and Ctrl+N go to Home. Change rows open a new tab on a root or a mover; Compare scans the root, compares with the newest snapshot not taken by that scan and zooms to the mover. Status slots: update available, next scheduled run (or Schedule off, Task missing), Elevate or Admin. Up and down colours are the `--up` and `--down` theme variables.
 
 ## Filter evaluation
 

@@ -1,5 +1,5 @@
 // Timeline drawings: the drive card sparkline (inline SVG) and the trend chart (canvas). Colours come from theme variables.
-import { DAY, size, tickLabel } from './fmt.js';
+import { DAY, UNITS, size, sizeIn, tickLabel } from './fmt.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const HOUR = 3600;
@@ -73,20 +73,42 @@ export function timeTicks(t0, t1, width) {
   return { list, unit };
 }
 
-/** Rounds a range outward and returns about three gridline values. */
-function sizeTicks(lo, hi) {
+/** Most decimals of a gridline label; past it the lines above the lowest show offsets. */
+const MAX_DECIMALS = 2;
+
+/** Binary unit index of a size. */
+const unitOf = (bytes) => Math.min(UNITS.length - 1, Math.max(0, Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(1024))));
+
+/** Nice step in bytes and label decimals for about three gridlines over `span` bytes shown in `unit`. */
+function niceStep(span, unit) {
+  const raw = span / 1024 ** unit / 3;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw);
+  return { step: step * 1024 ** unit, decimals: Math.max(0, -Math.floor(Math.log10(step) + 1e-9)) };
+}
+
+/**
+ * Rounds a range outward to about three gridlines. Labels share one unit and the decimals the step
+ * needs; when a small change would need more, the lowest line is absolute and the others are offsets.
+ */
+export function sizeTicks(lo, hi) {
   if (hi <= lo) {
     const pad = Math.max(hi * 0.01, 1 << 20);
     [lo, hi] = [lo - pad, hi + pad];
   }
-  const raw = (hi - lo) / 3;
-  const mag = 1024 ** Math.max(0, Math.floor(Math.log(raw) / Math.log(1024)));
-  const step = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].map((m) => m * mag).find((s) => s >= raw) ?? raw;
-  const start = Math.floor(lo / step) * step;
-  const end = Math.ceil(hi / step) * step;
+  const base = unitOf(hi);
+  let { step, decimals } = niceStep(hi - lo, base);
+  const offsets = decimals > MAX_DECIMALS;
+  const unit = offsets ? unitOf(hi - lo) : base;
+  if (offsets) ({ step, decimals } = niceStep(hi - lo, unit));
+  const [first, last] = [Math.floor(lo / step), Math.ceil(hi / step)];
   const list = [];
-  for (let v = start; v <= end + step / 2; v += step) list.push(v);
-  return { lo: start, hi: end, list };
+  for (let k = first; k <= last; k++) list.push(k * step);
+  const start = first * step;
+  const label = offsets
+    ? (v) => (v === start ? size(v) : `+${sizeIn(v - start, unit, decimals)}`)
+    : (v) => sizeIn(v, unit, decimals);
+  return { lo: start, hi: last * step, list, label };
 }
 
 /** Theme colours read from the CSS variables. */
@@ -187,7 +209,7 @@ export class Trend {
       ctx.lineTo(f.x1, y);
       ctx.stroke();
       ctx.fillStyle = c.text;
-      ctx.fillText(size(v), f.x1 + 6, y);
+      ctx.fillText(f.y.label(v), f.x1 + 6, y);
     }
   }
 

@@ -12,7 +12,7 @@ Navigation inspired by SpaceSniffer.
 - Parallel directory walk, or a raw NTFS MFT scan when run as administrator.
 - Live updates from a file-system watcher, with an optional highlight of recent changes.
 - Snapshots and compare mode: tiles coloured by change (new, grown, shrunk), deleted bytes as hatched tiles, a Changes list.
-- Dashboard start screen: drive usage with 7 and 30 day change, a trend chart per drive, the latest movers.
+- Dashboard start screen: drive usage with 7 and 30 day change, a trend chart per drive, the changes per drive over 7 days, 30 days or all the history.
 - Periodic scans from Windows Task Scheduler, with a timeline per root and a toast with the top movers.
 - Filter language: name masks, size, age, attributes, folders, file classes, colour tags and change status.
 - File colours by accent, file class or age.
@@ -48,7 +48,7 @@ The exes are not code-signed, so SmartScreen may warn on first run (More info, R
 ## Usage
 
 - Start screen: type a path (several separated by `;`), pick a drive, a pinned folder or a recent scan, or browse. Folders dropped on the window open in tabs. Paths on the command line open one tab each.
-- Dashboard: drive cards with used space, 7 and 30 day change and a sparkline; the Trend chart of used space per drive; Movers from the latest periodic scans, which open a tab or Compare against the latest snapshot. About and Settings at the top right.
+- Dashboard: drive cards with used space, 7 and 30 day change and a sparkline; the Trend chart of used space per drive; Changes per root over 7d, 30d or All with the top movers, which open a tab or Compare against the latest snapshot. Home is a fixed first tab. About and Settings at the top right.
 - Click a folder or file to select it; the map digs in place to show its contents.
 - Double click to zoom to the folder (the parent for a file). Back and Forward step through zooms only; Up and Root zoom out.
 - Right click: Open, Open in terminal, Reveal, Copy path, Properties, Scan in new tab, Pin, Recycle, tags, Export CSV and Zoom.

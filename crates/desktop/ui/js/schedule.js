@@ -48,6 +48,7 @@ function render(app, box, info) {
       draft = structuredClone(saved);
       app.cfg = { ...app.cfg, schedule: saved };
       refresh(info.exists);
+      app.parts.start?.refresh();
     } catch (e) {
       refresh();
       state.textContent = 'Error';

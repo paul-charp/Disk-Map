@@ -123,7 +123,7 @@ app.compareRoot = async (root, which = 'latest', rel = '') => {
   };
   const st = app.status;
   if (app.tab && st && !st.running && st.path && sameRoot(st.path, root)) return run(app.tab);
-  const tab = await app.newTab();
+  const tab = app.addTab();
   app.afterScan(tab, () => run(tab));
   await app.scan(tab, root);
 };
@@ -242,19 +242,35 @@ app.activate = async (id) => {
   app.map.refresh();
 };
 
-/** Opens a tab, scanning `path` in it when given. */
-app.newTab = async (path = '', activate = true) => {
+/** The Home tab, first in the strip; created on first use. */
+app.home = () => {
+  if (!app.tabs[0]?.home) app.tabs.unshift(newTab(true));
+  return app.tabs[0];
+};
+
+/** Adds a tab for a scan that has not started yet. */
+app.addTab = (activate = true) => {
   const tab = newTab();
   app.tabs.push(tab);
-  const active = activate || !app.tab;
-  if (active) {
+  if (activate || !app.tab) {
     stash(app.tab);
     app.tab = tab;
     app.hovered = null;
   }
   app.parts.tabbar.render();
-  if (active) showMode();
-  if (path) await app.scan(tab, path);
+  return tab;
+};
+
+/** Opens a tab scanning `path`; without a path, shows Home with its path field focused. */
+app.newTab = async (path = '', activate = true) => {
+  if (!path) {
+    const home = app.home();
+    if (app.tab === home) app.parts.start.focus();
+    else await app.activate(home.id);
+    return home;
+  }
+  const tab = app.addTab(activate);
+  await app.scan(tab, path);
   return tab;
 };
 
@@ -265,12 +281,11 @@ app.openPaths = async (paths) => {
 
 app.closeTab = async (id) => {
   const i = app.tabs.findIndex((t) => t.id === id);
-  if (i < 0) return;
+  if (i < 0 || app.tabs[i].home) return;
   const [tab] = app.tabs.splice(i, 1);
   scanHooks.delete(id);
   api.closeTab(id);
   app.map.forget(id);
-  if (!app.tabs.length) return app.newTab();
   if (tab !== app.tab) return app.parts.tabbar.render();
   const next = app.tabs[Math.min(i, app.tabs.length - 1)];
   app.tab = null;
@@ -280,8 +295,8 @@ app.closeTab = async (id) => {
 /** Moves a tab to `index` in the strip. */
 app.moveTab = (id, index) => {
   const from = app.tabs.findIndex((t) => t.id === id);
-  const to = Math.max(0, Math.min(index, app.tabs.length - 1));
-  if (from < 0 || from === to) return;
+  const to = Math.max(1, Math.min(index, app.tabs.length - 1));
+  if (from < 1 || from === to) return;
   app.tabs.splice(to, 0, ...app.tabs.splice(from, 1));
   app.parts.tabbar.render();
 };
@@ -309,8 +324,13 @@ app.scan = async (tab, path) => {
     app.map.refresh();
   } catch (e) {
     scanHooks.delete(tab.id);
-    tab.startError = String(e);
-    if (tab === app.tab) app.parts.start.error(tab.startError);
+    if (tab.mode === 'map') return app.parts.statusbar.flash(String(e));
+    const home = app.home();
+    home.startError = String(e);
+    const active = tab === app.tab;
+    await app.closeTab(tab.id);
+    if (active) await app.activate(home.id);
+    if (app.tab === home) app.parts.start.error(home.startError);
   }
 };
 

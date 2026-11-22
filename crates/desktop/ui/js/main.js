@@ -136,25 +136,26 @@ async function main() {
   if (boot.flags.settings) app.parts.settings.open(boot.flags.settings);
 }
 
-/** Opens the tabs from the command line, or one start tab, and wires scan events and drops. */
+/** Opens Home and the tabs from the command line (an empty entry is Home), and wires scan events and drops. */
 async function openStartTabs(boot) {
-  const last = boot.tabs.length - 1;
-  let pending = last >= 0 ? { index: last, flags: boot.flags } : null;
   await onScan((st) => {
     if (app.setStatus(st) && st.tab === app.tab.id) app.map.request();
     app.scanEvent(st);
-    const tab = app.tabs[pending?.index];
-    if (tab?.id === st.tab && st.active && !st.running) {
-      const { flags } = pending;
-      pending = null;
-      applyScanFlags(app, tab, flags);
-    }
   });
   await onDrop((paths) => app.openPaths(paths));
   await onOpenTabs((paths) => app.openPaths(paths));
   $('app').hidden = false;
-  if (last < 0) return app.newTab();
-  for (const [i, p] of boot.tabs.entries()) await app.newTab(p, i === last);
+  await app.activate(app.home().id);
+  const last = boot.tabs.length - 1;
+  for (const [i, p] of boot.tabs.entries()) {
+    if (!p) {
+      if (i === last) await app.activate(app.home().id);
+      continue;
+    }
+    const tab = app.addTab(i === last);
+    if (i === last) app.afterScan(tab, () => applyScanFlags(app, tab, boot.flags));
+    await app.scan(tab, p);
+  }
 }
 
 /** Sends an uncaught script error to the log. */
